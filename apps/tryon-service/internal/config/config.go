@@ -15,9 +15,10 @@ type Config struct {
     RedisURL    string `envconfig:"REDIS_URL" default:"redis://redis:6379"`
 
     InferenceGatewayURL string `envconfig:"INFERENCE_GATEWAY_URL" default:"http://inference-gateway:8090"`
-    AuthJWKSURL         string `envconfig:"AUTH_JWKS_URL" default:"http://auth-service:8081/v1/.well-known/jwks.json"
+    AuthJWKSURL         string `envconfig:"AUTH_JWKS_URL" default:"http://auth-service:8081/v1/.well-known/jwks.json"`
+    GarmentServiceURL   string `envconfig:"GARMENT_SERVICE_URL" default:"http://garment-service:8083"`
 
-    CacheTTLHours int `envconfig:"CACHE_TTL_HOURS" default:"24"`
+    CacheTTLHours         int `envconfig:"CACHE_TTL_HOURS" default:"24"`
     ImageURLExpiryMinutes int `envconfig:"IMAGE_URL_EXPIRY_MINUTES" default:"1440"`
 }
 

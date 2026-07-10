@@ -51,10 +51,12 @@ func (s *Server) Router() http.Handler {
     r.Get("/health", handler.Health(Version))
 
     r.Route("/v1", func(r chi.Router) {
+        // Public: QR verification (no auth — anyone with the QR can verify)
         r.Get("/qr-codes/verify/{payload}", handler.VerifyQRCode(qrSvc))
 
+        // Server-to-server: API key required
         r.Group(func(r chi.Router) {
-            r.Use(middleware.JWTAuth(s.cfg.AuthJWKSURL))
+            r.Use(middleware.APIKeyAuth(s.pool))
 
             r.Post("/catalog/skus", handler.CreateSKU(garmentSvc))
             r.Get("/catalog/skus", handler.ListSKUs(garmentSvc))

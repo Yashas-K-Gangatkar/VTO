@@ -2,19 +2,22 @@ package middleware
 
 import (
     "context"
+    "crypto/sha256"
+    "encoding/hex"
     "encoding/json"
+    "fmt"
     "net/http"
     "strings"
 
     "github.com/google/uuid"
+    "github.com/jackc/pgx/v5"
+    "github.com/jackc/pgx/v5/pgxpool"
 )
 
 type ctxKey int
 
 const (
     ctxKeyRetailerID ctxKey = iota
-    ctxKeyShopperRef
-    ctxKeyTokenID
     ctxKeyRequestID
 )
 
@@ -30,13 +33,8 @@ func RequestID(next http.Handler) http.Handler {
     })
 }
 
-type jwtClaims struct {
-    RetailerID string `json:"retailer_id"`
-    ShopperRef string `json:"shopper_ref"`
-    TokenID    string `json:"jti"`
-}
-
-func JWTAuth(jwksURL string) func(http.Handler) http.Handler {
+// APIKeyAuth verifies a server-to-server API key against the auth.api_keys table.
+func APIKeyAuth(pool *pgxpool.Pool) func(http.Handler) http.Handler {
     return func(next http.Handler) http.Handler {
         return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
             authHeader := r.Header.Get("Authorization")
@@ -44,31 +42,51 @@ func JWTAuth(jwksURL string) func(http.Handler) http.Handler {
                 writeError(w, http.StatusUnauthorized, "missing_authorization", "Authorization header required")
                 return
             }
+
             parts := strings.SplitN(authHeader, " ", 2)
             if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-                writeError(w, http.StatusUnauthorized, "invalid_authorization", "Authorization must be Bearer token")
+                writeError(w, http.StatusUnauthorized, "invalid_authorization", "Authorization must be Bearer <api-key>")
                 return
             }
-            tokenStr := strings.TrimSpace(parts[1])
-            claims, err := parseAndVerifyJWT(tokenStr, jwksURL)
+
+            key := strings.TrimSpace(parts[1])
+            retailerID, err := verifyAPIKey(r.Context(), pool, key)
             if err != nil {
-                writeError(w, http.StatusUnauthorized, "invalid_token", "Invalid or expired token")
+                writeError(w, http.StatusUnauthorized, "invalid_api_key", "Invalid or revoked API key")
                 return
             }
-            ctx := context.WithValue(r.Context(), ctxKeyRetailerID, claims.RetailerID)
-            ctx = context.WithValue(ctx, ctxKeyShopperRef, claims.ShopperRef)
-            ctx = context.WithValue(ctx, ctxKeyTokenID, claims.TokenID)
+
+            ctx := context.WithValue(r.Context(), ctxKeyRetailerID, retailerID)
             next.ServeHTTP(w, r.WithContext(ctx))
         })
     }
 }
 
-func parseAndVerifyJWT(tokenStr, jwksURL string) (*jwtClaims, error) {
-    return &jwtClaims{
-        RetailerID: "00000000-0000-0000-0000-000000000001",
-        ShopperRef: "dev-shopper",
-        TokenID:    "st_dev",
-    }, nil
+func verifyAPIKey(ctx context.Context, pool *pgxpool.Pool, key string) (string, error) {
+    h := sha256.Sum256([]byte(key))
+    hash := hex.EncodeToString(h[:])
+
+    var retailerID string
+    err := pool.QueryRow(ctx, `
+        SELECT retailer_id::text FROM auth.api_keys
+        WHERE key_hash = $1 AND revoked_at IS NULL
+    `, hash).Scan(&retailerID)
+
+    if err != nil {
+        if err == pgx.ErrNoRows {
+            return "", fmt.Errorf("invalid api key")
+        }
+        return "", fmt.Errorf("query api key: %w", err)
+    }
+
+    // Update last_used_at (fire-and-forget)
+    go func() {
+        bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+        defer cancel()
+        _, _ = pool.Exec(bgCtx, `UPDATE auth.api_keys SET last_used_at = NOW() WHERE key_hash = $1`, hash)
+    }()
+
+    return retailerID, nil
 }
 
 func RetailerIDFromContext(ctx context.Context) string {
@@ -96,3 +114,5 @@ func writeError(w http.ResponseWriter, status int, code, detail string) {
         "errors": []map[string]string{{"code": code}},
     })
 }
+
+import "time"

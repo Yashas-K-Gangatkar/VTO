@@ -28,12 +28,7 @@ type Server struct {
 }
 
 func New(cfg *config.Config, logger zerolog.Logger, pool *pgxpool.Pool, cache *cache.Redis) *Server {
-    return &Server{
-        cfg:    cfg,
-        logger: logger,
-        pool:   pool,
-        cache:  cache,
-    }
+    return &Server{cfg: cfg, logger: logger, pool: pool, cache: cache}
 }
 
 func (s *Server) Router() http.Handler {
@@ -60,6 +55,7 @@ func (s *Server) Router() http.Handler {
             r.Post("/tryons", handler.CreateTryOn(tryonSvc))
             r.Get("/tryons/{id}", handler.GetTryOn(tryonSvc))
             r.Post("/tryons/{id}/viewed", handler.MarkViewed(tryonSvc))
+            r.Post("/tryons/qr-scan", handler.CreateTryOnFromQRScan(tryonSvc, s.cfg.GarmentServiceURL))
         })
     })
 
@@ -78,10 +74,7 @@ func (s *Server) Start(ctx context.Context) error {
 
     errCh := make(chan error, 1)
     go func() {
-        s.logger.Info().
-            Str("addr", srv.Addr).
-            Str("version", Version).
-            Msg("tryon-service starting")
+        s.logger.Info().Str("addr", srv.Addr).Str("version", Version).Msg("tryon-service starting")
         if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
             errCh <- err
         }

@@ -2,6 +2,8 @@ package handler
 
 import (
     "encoding/json"
+    "fmt"
+    "io"
     "net/http"
     "strings"
 
@@ -26,7 +28,7 @@ type QRScanResponse struct {
     PollURL              string `json:"poll_url"`
 }
 
-func CreateTryOnFromQRScan(svc *tryon.Service) http.HandlerFunc {
+func CreateTryOnFromQRScan(svc *tryon.Service, garmentServiceURL string) http.HandlerFunc {
     return func(w http.ResponseWriter, r *http.Request) {
         retailerID := middleware.RetailerIDFromContext(r.Context())
         shopperRef := middleware.ShopperRefFromContext(r.Context())
@@ -52,12 +54,19 @@ func CreateTryOnFromQRScan(svc *tryon.Service) http.HandlerFunc {
             writeValidationError(w, "body_profile_id", "body_profile_id is required (scan body first)")
             return
         }
+
         payloadStr := req.QRPayload
         if strings.HasPrefix(payloadStr, "vto://qr?p=") {
             payloadStr = strings.TrimPrefix(payloadStr, "vto://qr?p=")
         }
+
+        garmentSKU, err := verifyQRWithGarmentService(garmentServiceURL, payloadStr)
+        if err != nil {
+            writeError(w, http.StatusUnauthorized, "invalid_qr", "QR verification failed: "+err.Error())
+            return
+        }
+
         qrScanID := "qrs_" + uuid.New().String()
-        garmentSKU := extractSKUFromPayload(payloadStr)
 
         bodyProfileID, err := uuid.Parse(req.BodyProfileID)
         if err != nil {
@@ -91,6 +100,34 @@ func CreateTryOnFromQRScan(svc *tryon.Service) http.HandlerFunc {
     }
 }
 
-func extractSKUFromPayload(payloadStr string) string {
-    return "QR-SCANNED-SKU"
+func verifyQRWithGarmentService(garmentServiceURL, payloadStr string) (string, error) {
+    url := fmt.Sprintf("%s/v1/qr-codes/verify/%s", garmentServiceURL, payloadStr)
+
+    resp, err := http.Get(url)
+    if err != nil {
+        return "", fmt.Errorf("call garment-service: %w", err)
+    }
+    defer resp.Body.Close()
+
+    if resp.StatusCode != http.StatusOK {
+        body, _ := io.ReadAll(resp.Body)
+        return "", fmt.Errorf("QR verification failed (status %d): %s", resp.StatusCode, string(body))
+    }
+
+    var result struct {
+        Data struct {
+            SKU        string `json:"sku"`
+            RetailerID string `json:"retailer_id"`
+        } `json:"data"`
+    }
+
+    if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+        return "", fmt.Errorf("decode response: %w", err)
+    }
+
+    if result.Data.SKU == "" {
+        return "", fmt.Errorf("empty SKU in QR verification response")
+    }
+
+    return result.Data.SKU, nil
 }
