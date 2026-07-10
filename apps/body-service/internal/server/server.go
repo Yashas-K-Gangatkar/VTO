@@ -1,79 +1,101 @@
-// Package server wires up the HTTP server for body-service.
 package server
 
 import (
-        "context"
-        "net/http"
-        "time"
+    "context"
+    "net/http"
+    "strconv"
+    "time"
 
-        "github.com/go-chi/chi/v5"
-        "github.com/rs/zerolog"
+    "github.com/go-chi/chi/v5"
+    "github.com/go-chi/cors"
+    "github.com/jackc/pgx/v5/pgxpool"
+    "github.com/rs/zerolog"
 
-        "github.com/vto/body-service/internal/config"
-        "github.com/vto/body-service/internal/handler"
+    "github.com/vto/body-service/internal/bodyprofile"
+    "github.com/vto/body-service/internal/config"
+    "github.com/vto/body-service/internal/encryption"
+    "github.com/vto/body-service/internal/handler"
+    "github.com/vto/body-service/internal/middleware"
+    vtos3 "github.com/vto/body-service/internal/s3"
 )
 
-// Version is the service version. Set at build time via -ldflags.
 var Version = "0.1.0-dev"
 
-// Server holds dependencies for the HTTP server.
 type Server struct {
-        cfg    *config.Config
-        logger zerolog.Logger
+    cfg    *config.Config
+    logger zerolog.Logger
+    pool   *pgxpool.Pool
+    s3     *vtos3.Client
+    enc    *encryption.Client
 }
 
-// New creates a new Server.
-func New(cfg *config.Config, logger zerolog.Logger) *Server {
-        return &Server{cfg: cfg, logger: logger}
+func New(cfg *config.Config, logger zerolog.Logger, pool *pgxpool.Pool, s3 *vtos3.Client, enc *encryption.Client) *Server {
+    return &Server{
+        cfg:    cfg,
+        logger: logger,
+        pool:   pool,
+        s3:     s3,
+        enc:    enc,
+    }
 }
 
-// Router returns the chi router.
 func (s *Server) Router() http.Handler {
-        r := chi.NewRouter()
-        r.Get("/health", handler.Health(Version))
-        // TODO: add service-specific routes
-        return r
+    r := chi.NewRouter()
+
+    profileSvc := bodyprofile.New(s.pool, s.s3, s.enc, s.cfg.ProfileDefaultTTLDays)
+
+    r.Use(middleware.RequestID)
+    r.Use(cors.Handler(cors.Options{
+        AllowedOrigins:   []string{"*"},
+        AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+        AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Request-Id", "Idempotency-Key"},
+        ExposedHeaders:   []string{"X-Request-Id"},
+        AllowCredentials: false,
+        MaxAge:           300,
+    }))
+
+    r.Get("/health", handler.Health(Version))
+
+    r.Route("/v1", func(r chi.Router) {
+        r.Group(func(r chi.Router) {
+            r.Use(middleware.JWTAuth("http://auth-service:8081/v1/.well-known/jwks.json"))
+
+            r.Post("/body_profiles", handler.CreateBodyProfile(profileSvc))
+            r.Get("/body_profiles/{id}", handler.GetBodyProfile(profileSvc))
+            r.Delete("/body_profiles/{id}", handler.DeleteBodyProfile(profileSvc))
+        })
+    })
+
+    return r
 }
 
-// Start begins serving HTTP. Blocks until ctx is canceled.
 func (s *Server) Start(ctx context.Context) error {
-        srv := &http.Server{
-                Addr:              ":" + itoa(s.cfg.Port),
-                Handler:           s.Router(),
-                ReadHeaderTimeout: 5 * time.Second,
-                ReadTimeout:       30 * time.Second,
-                WriteTimeout:      30 * time.Second,
-                IdleTimeout:       120 * time.Second,
-        }
+    srv := &http.Server{
+        Addr:              ":" + strconv.Itoa(s.cfg.Port),
+        Handler:           s.Router(),
+        ReadHeaderTimeout: 10 * time.Second,
+        ReadTimeout:       60 * time.Second,
+        WriteTimeout:      60 * time.Second,
+        IdleTimeout:       120 * time.Second,
+    }
 
-        errCh := make(chan error, 1)
-        go func() {
-                s.logger.Info().Str("addr", srv.Addr).Str("version", Version).Msg("body-service starting")
-                if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-                        errCh <- err
-                }
-        }()
+    errCh := make(chan error, 1)
+    go func() {
+        s.logger.Info().
+            Str("addr", srv.Addr).
+            Str("version", Version).
+            Msg("body-service starting")
+        if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+            errCh <- err
+        }
+    }()
 
-        select {
-        case <-ctx.Done():
-                shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-                defer cancel()
-                return srv.Shutdown(shutdownCtx)
-        case err := <-errCh:
-                return err
-        }
-}
-
-func itoa(i int) string {
-        if i == 0 {
-                return "0"
-        }
-        var buf [20]byte
-        pos := len(buf)
-        for i > 0 {
-                pos--
-                buf[pos] = byte('0' + i%10)
-                i /= 10
-        }
-        return string(buf[pos:])
+    select {
+    case <-ctx.Done():
+        shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+        defer cancel()
+        return srv.Shutdown(shutdownCtx)
+    case err := <-errCh:
+        return err
+    }
 }

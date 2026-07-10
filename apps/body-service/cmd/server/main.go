@@ -1,43 +1,64 @@
-// Package main is the entry point for body-service.
 package main
 
 import (
-        "context"
-        "os"
-        "os/signal"
-        "syscall"
-        "time"
+    "context"
+    "os"
+    "os/signal"
+    "syscall"
+    "time"
 
-        "github.com/rs/zerolog"
-        "github.com/rs/zerolog/log"
+    "github.com/rs/zerolog"
+    "github.com/rs/zerolog/log"
 
-        "github.com/vto/body-service/internal/config"
-        "github.com/vto/body-service/internal/server"
+    "github.com/vto/body-service/internal/config"
+    "github.com/vto/body-service/internal/database"
+    "github.com/vto/body-service/internal/encryption"
+    "github.com/vto/body-service/internal/server"
+    vtos3 "github.com/vto/body-service/internal/s3"
 )
 
 func main() {
-        zerolog.TimeFieldFormat = time.RFC3339Nano
-        log.Logger = log.Output(os.Stdout).With().Str("service", "body-service").Logger()
+    zerolog.TimeFieldFormat = time.RFC3339Nano
+    log.Logger = log.Output(os.Stdout).With().Str("service", "body-service").Logger()
 
-        cfg, err := config.Load()
-        if err != nil {
-                log.Fatal().Err(err).Msg("failed to load config")
-        }
+    cfg, err := config.Load()
+    if err != nil {
+        log.Fatal().Err(err).Msg("failed to load config")
+    }
 
-        level, err := zerolog.ParseLevel(cfg.LogLevel)
-        if err != nil {
-                level = zerolog.InfoLevel
-        }
-        zerolog.SetGlobalLevel(level)
+    level, err := zerolog.ParseLevel(cfg.LogLevel)
+    if err != nil {
+        level = zerolog.InfoLevel
+    }
+    zerolog.SetGlobalLevel(level)
 
-        srv := server.New(cfg, log.Logger)
+    pool, err := database.New(cfg.DatabaseURL)
+    if err != nil {
+        log.Fatal().Err(err).Msg("failed to connect to Postgres")
+    }
+    defer pool.Close()
+    log.Info().Msg("connected to Postgres")
 
-        ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-        defer stop()
+    s3Client, err := vtos3.New(cfg.S3Endpoint, cfg.S3AccessKey, cfg.S3SecretKey, cfg.S3Bucket, cfg.S3Region)
+    if err != nil {
+        log.Fatal().Err(err).Msg("failed to create S3 client")
+    }
+    log.Info().Str("bucket", cfg.S3Bucket).Msg("S3 client configured")
 
-        if err := srv.Start(ctx); err != nil {
-                log.Fatal().Err(err).Msg("server error")
-        }
+    encClient, err := encryption.New(cfg.EncryptionKeyPath)
+    if err != nil {
+        log.Fatal().Err(err).Msg("failed to load encryption key")
+    }
+    log.Info().Str("fingerprint", encClient.Fingerprint()).Msg("encryption client ready")
 
-        log.Info().Msg("body-service stopped")
+    srv := server.New(cfg, log.Logger, pool, s3Client, encClient)
+
+    ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+    defer stop()
+
+    if err := srv.Start(ctx); err != nil {
+        log.Fatal().Err(err).Msg("server error")
+    }
+
+    log.Info().Msg("body-service stopped")
 }
