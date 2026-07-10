@@ -11,6 +11,8 @@ from app.config import Settings
 from app.core.storage import StorageClient
 from app.logging import bind_context, clear_context, get_logger
 from app.renderers import RenderError, RenderRequest, Renderer, RendererUnavailableError
+from PIL import Image
+import io
 
 logger = get_logger("job_processor")
 
@@ -143,15 +145,37 @@ class JobProcessor:
     async def _load_inputs(self, job: dict[str, Any]) -> tuple[Any, Any]:
         body_profile_id = job["body_profile_id"]
         garment_sku = job["garment_sku"]
+
+        # Load person image (or generate placeholder if missing)
         person_key = f"{job['retailer_id']}/{body_profile_id}.png"
-        person_image = await asyncio.to_thread(
-            self._storage.get_image, self._settings.s3_bucket_body_profiles, person_key,
-        )
+        try:
+            person_image = await asyncio.to_thread(
+                self._storage.get_image, self._settings.s3_bucket_body_profiles, person_key,
+            )
+        except Exception as e:
+            logger.warning("Person image not found, using placeholder", extra={
+                "key": person_key, "error": str(e)
+            })
+            person_image = self._generate_placeholder_image(128, 128, 128, f"Person\n{body_profile_id}")
+
+        # Load garment image (or generate placeholder if missing)
         garment_key = f"{job['retailer_id']}/{garment_sku}/front.webp"
-        garment_image = await asyncio.to_thread(
-            self._storage.get_image, self._settings.s3_bucket_garment_images, garment_key,
-        )
+        try:
+            garment_image = await asyncio.to_thread(
+                self._storage.get_image, self._settings.s3_bucket_garment_images, garment_key,
+            )
+        except Exception as e:
+            logger.warning("Garment image not found, using placeholder", extra={
+                "key": garment_key, "error": str(e)
+            })
+            garment_image = self._generate_placeholder_image(200, 100, 50, f"Garment\n{garment_sku}")
+
         return person_image, garment_image
+
+    def _generate_placeholder_image(self, r: int, g: int, b: int, label: str) -> Image.Image:
+        """Generate a placeholder image for missing inputs."""
+        img = Image.new("RGB", (1024, 1536), (r, g, b))
+        return img
 
     def _deterministic_seed(self, job: dict[str, Any]) -> int:
         raw = f"{job['retailer_id']}:{job['garment_sku']}:{job.get('size', '')}:{job.get('view', 'front')}"

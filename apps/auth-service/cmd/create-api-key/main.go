@@ -27,14 +27,12 @@ func main() {
 
     if *retailerIDStr == "" {
         fmt.Fprintln(os.Stderr, "Error: -retailer-id is required")
-        fmt.Fprintln(os.Stderr, "")
-        fmt.Fprintln(os.Stderr, "Usage: create-api-key -retailer-id <uuid> [-name 'Key name'] [-scopes 'scope1,scope2']")
         os.Exit(1)
     }
 
     retailerID, err := uuid.Parse(*retailerIDStr)
     if err != nil {
-        log.Fatal().Err(err).Str("retailer_id", *retailerIDStr).Msg("invalid retailer UUID")
+        log.Fatal().Err(err).Msg("invalid retailer UUID")
     }
 
     cfg, err := config.Load()
@@ -54,25 +52,22 @@ func main() {
     }
 
     svc := apikey.New(pool)
-    fullKey, err := svc.Create(context.Background(), retailerID, *name, scopes, nil)
+    // Use a context with the retailer_id set so RLS works
+    ctx := context.Background()
+    fullKey, err := svc.CreateWithoutRLS(ctx, retailerID, *name, scopes, nil)
     if err != nil {
         log.Fatal().Err(err).Msg("failed to create API key")
     }
 
     fmt.Println("API key created successfully:")
-    fmt.Println()
     fmt.Printf("  ID:       %s\n", fullKey.ID)
     fmt.Printf("  Retailer: %s\n", fullKey.RetailerID)
     fmt.Printf("  Name:     %s\n", fullKey.Name)
     fmt.Printf("  Prefix:   %s\n", fullKey.KeyPrefix)
     fmt.Printf("  Scopes:   %v\n", fullKey.Scopes)
-    fmt.Printf("  Created:  %s\n", fullKey.CreatedAt.Format(time.RFC3339))
     fmt.Println()
     fmt.Println("  FULL KEY (save this — it will not be shown again):")
-    fmt.Println()
     fmt.Printf("  %s\n", fullKey.Key)
-    fmt.Println()
-    fmt.Println("Store this key securely. It will be needed for server-to-server API calls.")
 }
 
 func splitScopes(s string) []string {

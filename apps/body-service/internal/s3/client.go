@@ -9,6 +9,7 @@ import (
     "time"
 
     "github.com/aws/aws-sdk-go-v2/aws"
+    "github.com/aws/aws-sdk-go-v2/credentials"
     awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
@@ -19,22 +20,20 @@ type Client struct {
 
 func New(endpoint, accessKey, secretKey, bucket, region string) (*Client, error) {
     if endpoint != "" {
-        u, err := url.Parse(endpoint)
+        _, err := url.Parse(endpoint)
         if err != nil {
             return nil, fmt.Errorf("parse s3 endpoint: %w", err)
         }
-        _ = u
     }
 
     client := awss3.New(awss3.Options{
-        Region:      region,
+        Region:       region,
         BaseEndpoint: aws.String(endpoint),
+        UsePathStyle: true,
+        Credentials:  credentials.NewStaticCredentialsProvider(accessKey, secretKey, ""),
     })
 
-    return &Client{
-        s3:     client,
-        bucket: bucket,
-    }, nil
+    return &Client{s3: client, bucket: bucket}, nil
 }
 
 func (c *Client) PutObject(ctx context.Context, key string, data []byte, contentType string) error {

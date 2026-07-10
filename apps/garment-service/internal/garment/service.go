@@ -97,7 +97,7 @@ func (s *Service) CreateSKU(ctx context.Context, req CreateSKURequest) (*SKU, *G
     }
     defer tx.Rollback(ctx)
 
-    _, err = tx.Exec(ctx, "SET LOCAL app.retailer_id = $1", req.RetailerID.String())
+    _, err = tx.Exec(ctx, "SELECT set_config('app.retailer_id', $1, true)", req.RetailerID.String())
     if err != nil {
         return nil, nil, fmt.Errorf("set tenant context: %w", err)
     }
@@ -141,7 +141,7 @@ func (s *Service) GetSKU(ctx context.Context, retailerID uuid.UUID, sku string) 
     }
     defer tx.Rollback(ctx)
 
-    _, err = tx.Exec(ctx, "SET LOCAL app.retailer_id = $1", retailerID.String())
+    _, err = tx.Exec(ctx, "SELECT set_config('app.retailer_id', $1, true)", retailerID.String())
     if err != nil {
         return nil, nil, fmt.Errorf("set tenant context: %w", err)
     }
@@ -193,7 +193,7 @@ func (s *Service) ListSKUs(ctx context.Context, retailerID uuid.UUID, limit int,
     }
     defer tx.Rollback(ctx)
 
-    _, err = tx.Exec(ctx, "SET LOCAL app.retailer_id = $1", retailerID.String())
+    _, err = tx.Exec(ctx, "SELECT set_config('app.retailer_id', $1, true)", retailerID.String())
     if err != nil {
         return nil, fmt.Errorf("set tenant context: %w", err)
     }
@@ -232,7 +232,7 @@ func (s *Service) DeleteSKU(ctx context.Context, retailerID uuid.UUID, sku strin
     }
     defer tx.Rollback(ctx)
 
-    _, err = tx.Exec(ctx, "SET LOCAL app.retailer_id = $1", retailerID.String())
+    _, err = tx.Exec(ctx, "SELECT set_config('app.retailer_id', $1, true)", retailerID.String())
     if err != nil {
         return fmt.Errorf("set tenant context: %w", err)
     }

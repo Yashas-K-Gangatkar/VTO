@@ -16,42 +16,40 @@ import (
 )
 
 var ErrNotFound = errors.New("tryon not found")
-var ErrGarmentNotDigitized = errors.New("garment not digitized")
-var ErrBodyProfileExpired = errors.New("body profile expired")
 
 type Status string
 
 const (
-    StatusPending   Status = "pending"
+    StatusPending    Status = "pending"
     StatusProcessing Status = "processing"
-    StatusSucceeded Status = "succeeded"
-    StatusFailed    Status = "failed"
-    StatusExpired   Status = "expired"
+    StatusSucceeded  Status = "succeeded"
+    StatusFailed     Status = "failed"
+    StatusExpired    Status = "expired"
 )
 
 type TryOn struct {
-    ID              uuid.UUID
-    RetailerID      uuid.UUID
-    ShopperRef      string
-    BodyProfileID   uuid.UUID
-    SkuID           uuid.UUID
-    GarmentSKU      string
-    Size            string
-    View            string
-    Status          Status
-    ImageURL        string
-    ImageExpiresAt  *time.Time
-    ThumbnailURL    string
-    QualityScore    *float64
-    ModelVersion    string
-    RenderTimeMs    *int
-    ErrorCode       string
-    ErrorDetail     string
-    CacheKey        string
-    Billed          bool
-    BilledAt        *time.Time
-    CreatedAt       time.Time
-    CompletedAt     *time.Time
+    ID             uuid.UUID
+    RetailerID     uuid.UUID
+    ShopperRef     string
+    BodyProfileID  uuid.UUID
+    SkuID          uuid.UUID
+    GarmentSKU     string
+    Size           string
+    View           string
+    Status         Status
+    ImageURL       string
+    ImageExpiresAt *time.Time
+    ThumbnailURL   string
+    QualityScore   *float64
+    ModelVersion   string
+    RenderTimeMs   *int
+    ErrorCode      string
+    ErrorDetail    string
+    CacheKey       string
+    Billed         bool
+    BilledAt       *time.Time
+    CreatedAt      time.Time
+    CompletedAt    *time.Time
 }
 
 type CreateRequest struct {
@@ -64,9 +62,9 @@ type CreateRequest struct {
 }
 
 type Service struct {
-    pool         *pgxpool.Pool
-    cache        *cache.Redis
-    cacheTTL     time.Duration
+    pool     *pgxpool.Pool
+    cache    *cache.Redis
+    cacheTTL time.Duration
 }
 
 func New(pool *pgxpool.Pool, cache *cache.Redis, cacheTTLHours int) *Service {
@@ -108,18 +106,12 @@ func (s *Service) Create(ctx context.Context, req CreateRequest) (*TryOn, error)
     tryonID := uuid.New()
     now := time.Now()
 
-    tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
-    if err != nil {
-        return nil, fmt.Errorf("begin tx: %w", err)
-    }
-    defer tx.Rollback(ctx)
-
-    _, err = tx.Exec(ctx, "SET LOCAL app.retailer_id = $1", req.RetailerID.String())
+    _, err = s.pool.Exec(ctx, "SELECT set_config('app.retailer_id', $1, true)", req.RetailerID.String())
     if err != nil {
         return nil, fmt.Errorf("set tenant context: %w", err)
     }
 
-    _, err = tx.Exec(ctx, `
+    _, err = s.pool.Exec(ctx, `
         INSERT INTO tryon.tryons (
             id, retailer_id, shopper_ref, body_profile_id, sku_id, garment_sku,
             size, view, status, cache_key
@@ -129,10 +121,6 @@ func (s *Service) Create(ctx context.Context, req CreateRequest) (*TryOn, error)
         req.Size, req.View, string(StatusPending), cacheKey)
     if err != nil {
         return nil, fmt.Errorf("insert tryon: %w", err)
-    }
-
-    if err := tx.Commit(ctx); err != nil {
-        return nil, fmt.Errorf("commit: %w", err)
     }
 
     return &TryOn{
@@ -153,18 +141,12 @@ func (s *Service) createCachedRecord(ctx context.Context, req CreateRequest, cac
     tryonID := uuid.New()
     now := time.Now()
 
-    tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
-    if err != nil {
-        return nil, fmt.Errorf("begin tx: %w", err)
-    }
-    defer tx.Rollback(ctx)
-
-    _, err = tx.Exec(ctx, "SET LOCAL app.retailer_id = $1", req.RetailerID.String())
+    _, err := s.pool.Exec(ctx, "SELECT set_config('app.retailer_id', $1, true)", req.RetailerID.String())
     if err != nil {
         return nil, fmt.Errorf("set tenant context: %w", err)
     }
 
-    _, err = tx.Exec(ctx, `
+    _, err = s.pool.Exec(ctx, `
         INSERT INTO tryon.tryons (
             id, retailer_id, shopper_ref, body_profile_id, sku_id, garment_sku,
             size, view, status, image_url, thumbnail_url, quality_score, model_version,
@@ -176,10 +158,6 @@ func (s *Service) createCachedRecord(ctx context.Context, req CreateRequest, cac
         cached.QualityScore, cached.ModelVersion, cached.RenderTimeMs, cacheKey, now)
     if err != nil {
         return nil, fmt.Errorf("insert cached tryon: %w", err)
-    }
-
-    if err := tx.Commit(ctx); err != nil {
-        return nil, fmt.Errorf("commit: %w", err)
     }
 
     return &TryOn{
@@ -203,13 +181,7 @@ func (s *Service) createCachedRecord(ctx context.Context, req CreateRequest, cac
 }
 
 func (s *Service) Get(ctx context.Context, retailerID, tryonID uuid.UUID) (*TryOn, error) {
-    tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
-    if err != nil {
-        return nil, fmt.Errorf("begin tx: %w", err)
-    }
-    defer tx.Rollback(ctx)
-
-    _, err = tx.Exec(ctx, "SET LOCAL app.retailer_id = $1", retailerID.String())
+    _, err := s.pool.Exec(ctx, "SELECT set_config('app.retailer_id', $1, true)", retailerID.String())
     if err != nil {
         return nil, fmt.Errorf("set tenant context: %w", err)
     }
@@ -239,13 +211,13 @@ func (s *Service) Get(ctx context.Context, retailerID, tryonID uuid.UUID) (*TryO
         completedAt   *time.Time
     )
 
-    err = tx.QueryRow(ctx, `
+    err = s.pool.QueryRow(ctx, `
         SELECT id, retailer_id, shopper_ref, body_profile_id, sku_id, garment_sku,
             size, view, status::text, image_url, image_expires_at, thumbnail_url,
             quality_score, model_version, render_time_ms, error_code, error_detail,
             cache_key, billed, billed_at, created_at, completed_at
         FROM tryon.tryons
-        WHERE id = $1 AND deleted_at IS NULL
+        WHERE id = $1
     `, tryonID).Scan(&id, &retID, &shopperRef, &bodyProfileID, &skuID, &garmentSKU,
         &size, &view, &status, &imageURL, &imageExpires, &thumbnailURL,
         &qualityScore, &modelVersion, &renderTimeMs, &errorCode, &errorDetail,
@@ -300,84 +272,6 @@ func (s *Service) Get(ctx context.Context, retailerID, tryonID uuid.UUID) (*TryO
     return t, nil
 }
 
-func (s *Service) MarkSucceeded(ctx context.Context, retailerID, tryonID uuid.UUID, imageURL, thumbnailURL, modelVersion string, qualityScore float64, renderTimeMs int) error {
-    tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
-    if err != nil {
-        return fmt.Errorf("begin tx: %w", err)
-    }
-    defer tx.Rollback(ctx)
-
-    _, err = tx.Exec(ctx, "SET LOCAL app.retailer_id = $1", retailerID.String())
-    if err != nil {
-        return fmt.Errorf("set tenant context: %w", err)
-    }
-
-    var cacheKey *string
-    err = tx.QueryRow(ctx, `
-        UPDATE tryon.tryons
-        SET status = 'succeeded', image_url = $1, thumbnail_url = $2,
-            quality_score = $3, model_version = $4, render_time_ms = $5,
-            completed_at = NOW()
-        WHERE id = $6 AND status IN ('pending', 'processing')
-        RETURNING cache_key
-    `, imageURL, thumbnailURL, qualityScore, modelVersion, renderTimeMs, tryonID).Scan(&cacheKey)
-
-    if err != nil {
-        if errors.Is(err, pgx.ErrNoRows) {
-            return ErrNotFound
-        }
-        return fmt.Errorf("update tryon: %w", err)
-    }
-
-    if err := tx.Commit(ctx); err != nil {
-        return fmt.Errorf("commit: %w", err)
-    }
-
-    if cacheKey != nil && *cacheKey != "" {
-        cached := &cache.CachedTryOn{
-            TryOnID:      tryonID.String(),
-            ImageURL:     imageURL,
-            ThumbnailURL: thumbnailURL,
-            QualityScore: qualityScore,
-            ModelVersion: modelVersion,
-            RenderTimeMs: renderTimeMs,
-        }
-        if err := s.cache.SetTryOn(ctx, *cacheKey, cached, s.cacheTTL); err != nil {
-            fmt.Printf("WARN: failed to cache tryon result: %v\n", err)
-        }
-    }
-
-    return nil
-}
-
-func (s *Service) MarkFailed(ctx context.Context, retailerID, tryonID uuid.UUID, errorCode, errorDetail string) error {
-    tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
-    if err != nil {
-        return fmt.Errorf("begin tx: %w", err)
-    }
-    defer tx.Rollback(ctx)
-
-    _, err = tx.Exec(ctx, "SET LOCAL app.retailer_id = $1", retailerID.String())
-    if err != nil {
-        return fmt.Errorf("set tenant context: %w", err)
-    }
-
-    tag, err := tx.Exec(ctx, `
-        UPDATE tryon.tryons
-        SET status = 'failed', error_code = $1, error_detail = $2, completed_at = NOW()
-        WHERE id = $3 AND status IN ('pending', 'processing')
-    `, errorCode, errorDetail, tryonID)
-    if err != nil {
-        return fmt.Errorf("update tryon: %w", err)
-    }
-
-    if tag.RowsAffected() == 0 {
-        return ErrNotFound
-    }
-
-    return tx.Commit(ctx)
-}
-
 func (s *Service) MarkViewed(ctx context.Context, retailerID, tryonID uuid.UUID) (bool, error) {
     alreadyViewed, err := s.cache.IsViewed(ctx, tryonID.String())
     if err != nil {
@@ -391,28 +285,18 @@ func (s *Service) MarkViewed(ctx context.Context, retailerID, tryonID uuid.UUID)
         return false, fmt.Errorf("mark viewed: %w", err)
     }
 
-    tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
-    if err != nil {
-        return false, fmt.Errorf("begin tx: %w", err)
-    }
-    defer tx.Rollback(ctx)
-
-    _, err = tx.Exec(ctx, "SET LOCAL app.retailer_id = $1", retailerID.String())
+    _, err = s.pool.Exec(ctx, "SELECT set_config('app.retailer_id', $1, true)", retailerID.String())
     if err != nil {
         return false, fmt.Errorf("set tenant context: %w", err)
     }
 
-    _, err = tx.Exec(ctx, `
+    _, err = s.pool.Exec(ctx, `
         UPDATE tryon.tryons
         SET billed = TRUE, billed_at = NOW()
         WHERE id = $1 AND billed = FALSE
     `, tryonID)
     if err != nil {
         return false, fmt.Errorf("mark billed: %w", err)
-    }
-
-    if err := tx.Commit(ctx); err != nil {
-        return false, fmt.Errorf("commit: %w", err)
     }
 
     return true, nil

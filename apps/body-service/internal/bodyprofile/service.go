@@ -87,7 +87,7 @@ func (s *Service) Create(ctx context.Context, req CreateRequest) (*BodyProfile, 
     }
     defer tx.Rollback(ctx)
 
-    _, err = tx.Exec(ctx, "SET LOCAL app.retailer_id = $1", req.RetailerID.String())
+    _, err = tx.Exec(ctx, "SELECT set_config('app.retailer_id', $1, true)", req.RetailerID.String())
     if err != nil {
         return nil, fmt.Errorf("set tenant context: %w", err)
     }
@@ -132,7 +132,7 @@ func (s *Service) Get(ctx context.Context, retailerID, profileID uuid.UUID) (*Bo
     }
     defer tx.Rollback(ctx)
 
-    _, err = tx.Exec(ctx, "SET LOCAL app.retailer_id = $1", retailerID.String())
+    _, err = tx.Exec(ctx, "SELECT set_config('app.retailer_id', $1, true)", retailerID.String())
     if err != nil {
         return nil, fmt.Errorf("set tenant context: %w", err)
     }
@@ -196,7 +196,7 @@ func (s *Service) Delete(ctx context.Context, retailerID, profileID uuid.UUID) e
     }
     defer tx.Rollback(ctx)
 
-    _, err = tx.Exec(ctx, "SET LOCAL app.retailer_id = $1", retailerID.String())
+    _, err = tx.Exec(ctx, "SELECT set_config('app.retailer_id', $1, true)", retailerID.String())
     if err != nil {
         return fmt.Errorf("set tenant context: %w", err)
     }

@@ -3,7 +3,6 @@
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-CREATE EXTENSION IF NOT EXISTS "vector";  -- pgvector for garment embeddings (Phase 2)
 
 -- Schemas (one per service boundary — see DR-075 for multi-tenancy model)
 CREATE SCHEMA IF NOT EXISTS auth;

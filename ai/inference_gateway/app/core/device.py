@@ -1,8 +1,14 @@
 from __future__ import annotations
 import logging
-from app.renderers.base import DeviceType
+from enum import Enum
 
 logger = logging.getLogger(__name__)
+
+
+class DeviceType(str, Enum):
+    CUDA = "cuda"
+    MPS = "mps"
+    CPU = "cpu"
 
 
 def detect_device(preferred: str = "auto") -> DeviceType:

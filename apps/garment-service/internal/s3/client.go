@@ -9,6 +9,7 @@ import (
     "time"
 
     "github.com/aws/aws-sdk-go-v2/aws"
+    "github.com/aws/aws-sdk-go-v2/credentials"
     awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
@@ -24,10 +25,14 @@ func New(endpoint, accessKey, secretKey, bucket, region string, usePathStyle boo
             return nil, fmt.Errorf("parse s3 endpoint: %w", err)
         }
     }
+
     client := awss3.New(awss3.Options{
         Region:       region,
         BaseEndpoint: aws.String(endpoint),
+        UsePathStyle: usePathStyle,
+        Credentials:  credentials.NewStaticCredentialsProvider(accessKey, secretKey, ""),
     })
+
     return &Client{s3: client, bucket: bucket}, nil
 }
 
@@ -70,6 +75,17 @@ func (c *Client) PresignedGetURL(ctx context.Context, key string, expiry time.Du
         return "", fmt.Errorf("presign: %w", err)
     }
     return req.URL, nil
+}
+
+func (c *Client) DeleteObject(ctx context.Context, key string) error {
+    _, err := c.s3.DeleteObject(ctx, &awss3.DeleteObjectInput{
+        Bucket: aws.String(c.bucket),
+        Key:    aws.String(key),
+    })
+    if err != nil {
+        return fmt.Errorf("delete object: %w", err)
+    }
+    return nil
 }
 
 func (c *Client) GenerateGarmentKey(retailerID, sku, view string) string {

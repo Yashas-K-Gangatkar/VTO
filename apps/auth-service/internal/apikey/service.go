@@ -83,7 +83,7 @@ func (s *Service) Create(ctx context.Context, retailerID uuid.UUID, name string,
     }
     defer tx.Rollback(ctx)
 
-    _, err = tx.Exec(ctx, "SET LOCAL app.retailer_id = $1", retailerID.String())
+    _, err = tx.Exec(ctx, "SELECT set_config('app.retailer_id', $1, true)", retailerID.String())
     if err != nil {
         return nil, fmt.Errorf("set tenant context: %w", err)
     }
@@ -167,7 +167,7 @@ func (s *Service) List(ctx context.Context, retailerID uuid.UUID) ([]APIKey, err
     }
     defer tx.Rollback(ctx)
 
-    _, err = tx.Exec(ctx, "SET LOCAL app.retailer_id = $1", retailerID.String())
+    _, err = tx.Exec(ctx, "SELECT set_config('app.retailer_id', $1, true)", retailerID.String())
     if err != nil {
         return nil, fmt.Errorf("set tenant context: %w", err)
     }
@@ -206,7 +206,7 @@ func (s *Service) Revoke(ctx context.Context, retailerID, keyID uuid.UUID, reaso
     }
     defer tx.Rollback(ctx)
 
-    _, err = tx.Exec(ctx, "SET LOCAL app.retailer_id = $1", retailerID.String())
+    _, err = tx.Exec(ctx, "SELECT set_config('app.retailer_id', $1, true)", retailerID.String())
     if err != nil {
         return fmt.Errorf("set tenant context: %w", err)
     }
@@ -225,4 +225,42 @@ func (s *Service) Revoke(ctx context.Context, retailerID, keyID uuid.UUID, reaso
     }
 
     return tx.Commit(ctx)
+}
+
+// CreateWithoutRLS creates an API key without setting the RLS tenant context.
+// Used by the CLI bootstrap tool which runs outside a tenant context.
+func (s *Service) CreateWithoutRLS(ctx context.Context, retailerID uuid.UUID, name string, scopes []string, createdBy *uuid.UUID) (*FullAPIKey, error) {
+    if scopes == nil {
+        scopes = []string{"server_to_server"}
+    }
+
+    fullKey, prefix, hash, err := generateKey()
+    if err != nil {
+        return nil, err
+    }
+
+    id := uuid.New()
+    now := time.Now()
+
+    // Insert directly without SET LOCAL (bypasses RLS — only for bootstrap)
+    _, err = s.pool.Exec(ctx, `
+        INSERT INTO auth.api_keys (id, retailer_id, name, key_hash, key_prefix, scopes, created_by)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `, id, retailerID, name, hash, prefix, scopes, createdBy)
+    if err != nil {
+        return nil, fmt.Errorf("insert api key: %w", err)
+    }
+
+    return &FullAPIKey{
+        APIKey: APIKey{
+            ID:         id,
+            RetailerID: retailerID,
+            Name:       name,
+            KeyPrefix:  prefix,
+            Scopes:     scopes,
+            CreatedAt:  now,
+            CreatedBy:  createdBy,
+        },
+        Key: fullKey,
+    }, nil
 }

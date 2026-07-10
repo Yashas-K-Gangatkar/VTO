@@ -1,7 +1,4 @@
--- ============================================================
--- Migration 000001: Initialize catalog schema
--- ============================================================
-
+DROP TYPE IF EXISTS digitization_status;
 CREATE TYPE digitization_status AS ENUM ('pending', 'processing', 'ready', 'failed', 'manual_qc');
 
 CREATE TABLE catalog.skus (
@@ -16,16 +13,11 @@ CREATE TABLE catalog.skus (
     metadata    JSONB,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    deleted_at  TIMESTAMPTZ,
-    UNIQUE(retailer_id, sku) WHERE deleted_at IS NULL
+    deleted_at  TIMESTAMPTZ
 );
 
 CREATE INDEX idx_skus_retailer_sku ON catalog.skus(retailer_id, sku);
 CREATE INDEX idx_skus_category ON catalog.skus(retailer_id, category);
-
-ALTER TABLE catalog.skus ENABLE ROW LEVEL SECURITY;
-CREATE POLICY tenant_isolation_skus ON catalog.skus
-    USING (retailer_id = current_setting('app.retailer_id', true)::UUID);
 
 CREATE TABLE catalog.garment_representations (
     id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -47,11 +39,6 @@ CREATE TABLE catalog.garment_representations (
 
 CREATE INDEX idx_garment_rep_sku ON catalog.garment_representations(sku_id);
 CREATE INDEX idx_garment_rep_status ON catalog.garment_representations(digitization_status);
-CREATE INDEX idx_garment_rep_retailer ON catalog.garment_representations(retailer_id);
-
-ALTER TABLE catalog.garment_representations ENABLE ROW LEVEL SECURITY;
-CREATE POLICY tenant_isolation_garment_rep ON catalog.garment_representations
-    USING (retailer_id = current_setting('app.retailer_id', true)::UUID);
 
 CREATE TABLE catalog.digitization_jobs (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -67,8 +54,3 @@ CREATE TABLE catalog.digitization_jobs (
 );
 
 CREATE INDEX idx_digitization_jobs_status ON catalog.digitization_jobs(status);
-CREATE INDEX idx_digitization_jobs_batch ON catalog.digitization_jobs(batch_id);
-
-ALTER TABLE catalog.digitization_jobs ENABLE ROW LEVEL SECURITY;
-CREATE POLICY tenant_isolation_digitization_jobs ON catalog.digitization_jobs
-    USING (retailer_id = current_setting('app.retailer_id', true)::UUID);

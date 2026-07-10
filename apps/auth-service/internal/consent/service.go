@@ -51,7 +51,7 @@ func (s *Service) Record(ctx context.Context, retailerID uuid.UUID, shopperRef s
     }
     defer tx.Rollback(ctx)
 
-    _, err = tx.Exec(ctx, "SET LOCAL app.retailer_id = $1", retailerID.String())
+    _, err = tx.Exec(ctx, "SELECT set_config('app.retailer_id', $1, true)", retailerID.String())
     if err != nil {
         return nil, fmt.Errorf("set tenant context: %w", err)
     }
@@ -88,7 +88,7 @@ func (s *Service) HasActiveConsent(ctx context.Context, retailerID uuid.UUID, sh
     }
     defer tx.Rollback(ctx)
 
-    _, err = tx.Exec(ctx, "SET LOCAL app.retailer_id = $1", retailerID.String())
+    _, err = tx.Exec(ctx, "SELECT set_config('app.retailer_id', $1, true)", retailerID.String())
     if err != nil {
         return false, fmt.Errorf("set tenant context: %w", err)
     }
@@ -114,7 +114,7 @@ func (s *Service) ListForShopper(ctx context.Context, retailerID uuid.UUID, shop
     }
     defer tx.Rollback(ctx)
 
-    _, err = tx.Exec(ctx, "SET LOCAL app.retailer_id = $1", retailerID.String())
+    _, err = tx.Exec(ctx, "SELECT set_config('app.retailer_id', $1, true)", retailerID.String())
     if err != nil {
         return nil, fmt.Errorf("set tenant context: %w", err)
     }
@@ -149,7 +149,7 @@ func (s *Service) Revoke(ctx context.Context, retailerID uuid.UUID, shopperRef s
     }
     defer tx.Rollback(ctx)
 
-    _, err = tx.Exec(ctx, "SET LOCAL app.retailer_id = $1", retailerID.String())
+    _, err = tx.Exec(ctx, "SELECT set_config('app.retailer_id', $1, true)", retailerID.String())
     if err != nil {
         return fmt.Errorf("set tenant context: %w", err)
     }

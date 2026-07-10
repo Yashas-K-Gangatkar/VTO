@@ -2,7 +2,7 @@
 #
 # Starts: Postgres, Redis, Kafka, ClickHouse, and all backend services.
 # Usage: docker compose up -d
-# Healthcheck: http://localhost:8080/v1/health
+# Healthcheck: http://localhost:8080/health
 
 services:
   # ============================================================
@@ -51,7 +51,7 @@ services:
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
     ports:
       - "8123:8123"  # HTTP
-      - "9000:9000"  # Native
+      - "9443:9000"  # Native
     volumes:
       - chdata:/var/lib/clickhouse
       - ./clickhouse-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -75,8 +75,8 @@ services:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:29092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
@@ -86,13 +86,13 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_LOG_RETENTION_HOURS: 168
-      CLUSTER_ID: vto-kafka-cluster-001
+      CLUSTER_ID: O8pceY1MSsSKKu4HfgvX-w
     ports:
-      - "29092:29092"
+      - "29092:9092"
     volumes:
       - kafkadata:/var/lib/kafka/data
     healthcheck:
-      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list | grep -q ."]
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 | grep -q id"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -120,7 +120,7 @@ services:
       MINIO_ROOT_USER: vto_dev
       MINIO_ROOT_PASSWORD: dev_password_change_me
     ports:
-      - "9000:9001"  # Console (changed to avoid clash with ClickHouse native port)
+      - "9445:9001"  # Console (changed to avoid clash with ClickHouse native port)
       - "9444:9000"  # S3 API
     volumes:
       - miniodata:/data
@@ -176,7 +176,7 @@ services:
       auth-service:
         condition: service_started
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/v1/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -186,6 +186,8 @@ services:
       context: ../../apps/auth-service
       dockerfile: Dockerfile
     container_name: vto-auth-service
+    ports:
+      - "8081:8081"
     environment:
       ENV: dev
       LOG_LEVEL: debug
@@ -193,8 +195,8 @@ services:
       DATABASE_URL: postgresql://vto:dev_password_change_me@postgres:5432/vto?sslmode=disable
       REDIS_URL: redis://redis:6379
       JWT_SIGNING_KEY_ID: key-1
-      JWT_PRIVATE_KEY_PATH: /run/secrets/jwt-private
-      JWT_PUBLIC_KEY_PATH: /run/secrets/jwt-public
+      JWT_PRIVATE_KEY_PATH: /run/secrets/jwt-private.pem
+      JWT_PUBLIC_KEY_PATH: /run/secrets/jwt-public.pem
     volumes:
       - ../../infrastructure/dev-keys:/run/secrets:ro
     depends_on:
@@ -213,6 +215,8 @@ services:
       context: ../../apps/body-service
       dockerfile: Dockerfile
     container_name: vto-body-service
+    ports:
+      - "8082:8082"
     environment:
       ENV: dev
       LOG_LEVEL: debug
@@ -224,6 +228,9 @@ services:
       S3_SECRET_KEY: dev_password_change_me
       S3_BUCKET: vto-prod-body-profiles
       KMS_KEY_ID: dev-key
+      ENCRYPTION_KEY_PATH: /run/secrets/body-encryption-key
+    volumes:
+      - ../../infrastructure/dev-keys:/run/secrets:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -262,6 +269,114 @@ services:
   #     - "8000:8000"
   #     - "8001:8001"
   #     - "8002:8002"
+
+  garment-service:
+    build:
+      context: ../../apps/garment-service
+      dockerfile: Dockerfile
+    container_name: vto-garment-service
+    ports:
+      - "8083:8083"
+    environment:
+      ENV: dev
+      LOG_LEVEL: debug
+      PORT: 8083
+      DATABASE_URL: postgresql://vto:dev_password_change_me@postgres:5432/vto?sslmode=disable
+      REDIS_URL: redis://redis:6379
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: vto_dev
+      S3_SECRET_KEY: dev_password_change_me
+      S3_BUCKET_GARMENTS: vto-prod-garment-images
+      S3_USE_PATH_STYLE: "true"
+      AUTH_JWKS_URL: http://auth-service:8081/v1/.well-known/jwks.json
+      QR_CODE_TOKEN_SECRET: dev-qr-secret-change-in-prod
+      QR_CODE_TOKEN_TTL_HOURS: "17520"
+    volumes:
+      - ../../infrastructure/dev-keys:/run/secrets:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8083/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  tryon-service:
+    build:
+      context: ../../apps/tryon-service
+      dockerfile: Dockerfile
+    container_name: vto-tryon-service
+    ports:
+      - "8084:8084"
+    environment:
+      ENV: dev
+      LOG_LEVEL: debug
+      PORT: 8084
+      DATABASE_URL: postgresql://vto:dev_password_change_me@postgres:5432/vto?sslmode=disable
+      REDIS_URL: redis://redis:6379
+      AUTH_JWKS_URL: http://auth-service:8081/v1/.well-known/jwks.json
+      GARMENT_SERVICE_URL: http://garment-service:8083
+      CACHE_TTL_HOURS: "24"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+      garment-service:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8084/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  inference-gateway:
+    build:
+      context: ../../ai/inference_gateway
+      dockerfile: Dockerfile
+    container_name: vto-inference-gateway
+    ports:
+      - "8090:8090"
+    environment:
+      VTO_ENV: dev
+      VTO_LOG_LEVEL: debug
+      VTO_PORT: "8090"
+      VTO_DATABASE_URL: postgresql://vto:dev_password_change_me@postgres:5432/vto
+      VTO_REDIS_URL: redis://redis:6379/0
+      VTO_S3_ENDPOINT: http://minio:9000
+      VTO_S3_ACCESS_KEY: vto_dev
+      VTO_S3_SECRET_KEY: dev_password_change_me
+      VTO_S3_BUCKET_TRYON_IMAGES: vto-prod-tryon-images
+      VTO_S3_BUCKET_GARMENT_IMAGES: vto-prod-garment-images
+      VTO_S3_BUCKET_BODY_PROFILES: vto-prod-body-profiles
+      VTO_S3_USE_PATH_STYLE: "true"
+      VTO_RENDERER: mock
+      VTO_RENDERER_DEVICE: cpu
+      VTO_RENDERER_WARM_ON_STARTUP: "true"
+      VTO_JOB_POLL_INTERVAL_SECONDS: "1.0"
+      VTO_JOB_MAX_CONCURRENT: "1"
+      VTO_JOB_TIMEOUT_SECONDS: "30"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/health')"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+
 
 volumes:
   pgdata:

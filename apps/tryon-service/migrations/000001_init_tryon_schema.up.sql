@@ -1,8 +1,4 @@
--- ============================================================
--- Migration 000001: Initialize tryon schema
--- ============================================================
--- Per DR-032: 24h result caching, no rebilling for cached views
-
+DROP TYPE IF EXISTS tryon_status;
 CREATE TYPE tryon_status AS ENUM ('pending', 'processing', 'succeeded', 'failed', 'expired');
 
 CREATE TABLE tryon.tryons (
@@ -35,10 +31,6 @@ CREATE INDEX idx_tryons_cache_key ON tryon.tryons(cache_key) WHERE status = 'suc
 CREATE INDEX idx_tryons_status ON tryon.tryons(status) WHERE status IN ('pending', 'processing');
 CREATE INDEX idx_tryons_shopper ON tryon.tryons(retailer_id, shopper_ref, created_at DESC);
 
-ALTER TABLE tryon.tryons ENABLE ROW LEVEL SECURITY;
-CREATE POLICY tenant_isolation_tryons ON tryon.tryons
-    USING (retailer_id = current_setting('app.retailer_id', true)::UUID);
-
 CREATE TABLE tryon.tryon_views (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tryon_id        UUID NOT NULL REFERENCES tryon.tryons(id),
@@ -49,7 +41,3 @@ CREATE TABLE tryon.tryon_views (
 );
 
 CREATE INDEX idx_tryon_views_tryon ON tryon.tryon_views(tryon_id);
-
-ALTER TABLE tryon.tryon_views ENABLE ROW LEVEL SECURITY;
-CREATE POLICY tenant_isolation_tryon_views ON tryon.tryon_views
-    USING (retailer_id = current_setting('app.retailer_id', true)::UUID);
