@@ -5,14 +5,18 @@
   "description": "OpenAPI spec + generated clients for VTO API",
   "main": "generated/typescript/index.ts",
   "scripts": {
-    "gen:typescript": "openapi-typescript-codegen --input openapi.yaml --output generated/typescript --client fetch",
-    "gen:go": "oapi-codegen --package vtoapi --generate types,client -o generated/go/client.go openapi.yaml",
-    "gen:python": "openapi-python-client generate --path openapi.yaml --output-path generated/python",
-    "validate": "openapi-generator-cli validate -i openapi.yaml",
-    "build": "pnpm run gen:typescript"
+    "validate": "redocly lint openapi.yaml",
+    "gen:typescript": "openapi-typescript-codegen --input openapi.yaml --output generated/typescript --client fetch --useOptions --useUnionTypes",
+    "gen:go": "oapi-codegen -package vtoapi -generate types,client -o generated/go/client.go openapi.yaml",
+    "gen:python": "openapi-python-client generate --path openapi.yaml --output-path generated/python --overwrite",
+    "gen:all": "pnpm validate && pnpm gen:typescript && pnpm gen:go && pnpm gen:python",
+    "clean": "rm -rf generated/typescript generated/go generated/python",
+    "build": "pnpm gen:all"
   },
   "devDependencies": {
+    "@redocly/cli": "^1.16.0",
     "openapi-typescript-codegen": "^0.29.0",
-    "openapi-generator-cli": "^7.6.0"
+    "openapi-python-client": "^0.7.7",
+    "@openapi-contrib/openapi-typescript-generator": "^0.1.20"
   }
 }

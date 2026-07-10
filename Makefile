@@ -85,3 +85,15 @@ bootstrap: ## Initialize git hooks and verify setup
 
 scaffold-services: ## Create scaffolds for all backend services (idempotent)
 	./tools/scaffold-services.sh
+
+# Generate API clients from OpenAPI spec
+gen-clients: ## Generate TypeScript, Go, Python clients from openapi.yaml
+    cd packages/contracts && pnpm gen:all
+
+# Validate OpenAPI spec is in sync with generated clients
+check-clients: ## Verify generated clients are up to date
+    cd packages/contracts && pnpm gen:all
+    @if ! git diff --exit-code packages/contracts/generated/; then \
+        echo "ERROR: Generated clients are out of date. Run 'make gen-clients' and commit."; \
+        exit 1; \
+    fi
