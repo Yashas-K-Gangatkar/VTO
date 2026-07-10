@@ -1,0 +1,7 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+  - 'dashboard'
+  - 'sdks/web'
+  - 'sdks/react-native'
+  - 'tools/*'

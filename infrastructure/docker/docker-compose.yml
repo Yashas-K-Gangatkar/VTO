@@ -1,0 +1,271 @@
+# VTO Local Development Stack
+#
+# Starts: Postgres, Redis, Kafka, ClickHouse, and all backend services.
+# Usage: docker compose up -d
+# Healthcheck: http://localhost:8080/v1/health
+
+services:
+  # ============================================================
+  # DATA STORES
+  # ============================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: vto-postgres
+    environment:
+      POSTGRES_DB: vto
+      POSTGRES_USER: vto
+      POSTGRES_PASSWORD: dev_password_change_me
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vto -d vto"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: vto-redis
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.3-alpine
+    container_name: vto-clickhouse
+    environment:
+      CLICKHOUSE_DB: vto
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: dev_password_change_me
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    ports:
+      - "8123:8123"  # HTTP
+      - "9000:9000"  # Native
+    volumes:
+      - chdata:/var/lib/clickhouse
+      - ./clickhouse-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8123/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ============================================================
+  # MESSAGE QUEUE (Kafka in KRaft mode — no Zookeeper)
+  # ============================================================
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: vto-kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 168
+      CLUSTER_ID: vto-kafka-cluster-001
+    ports:
+      - "29092:29092"
+    volumes:
+      - kafkadata:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list | grep -q ."]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: vto-kafka-ui
+    environment:
+      KAFKA_CLUSTERS_0_NAME: vto-local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    ports:
+      - "8088:8080"
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  # ============================================================
+  # OBJECT STORAGE (MinIO — S3-compatible for local dev)
+  # ============================================================
+  minio:
+    image: minio/minio:latest
+    container_name: vto-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: vto_dev
+      MINIO_ROOT_PASSWORD: dev_password_change_me
+    ports:
+      - "9000:9001"  # Console (changed to avoid clash with ClickHouse native port)
+      - "9444:9000"  # S3 API
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: vto-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 vto_dev dev_password_change_me;
+      mc mb local/vto-prod-body-profiles --ignore-existing;
+      mc mb local/vto-prod-garment-images --ignore-existing;
+      mc mb local/vto-prod-tryon-images --ignore-existing;
+      mc mb local/vto-prod-catalog-uploads --ignore-existing;
+      mc mb local/vto-prod-datasets --ignore-existing;
+      mc mb local/vto-prod-lora-adapters --ignore-existing;
+      echo 'Buckets created';
+      "
+
+  # ============================================================
+  # BACKEND SERVICES (Go)
+  # ============================================================
+  api-gateway:
+    build:
+      context: ../../apps/api-gateway
+      dockerfile: Dockerfile
+    container_name: vto-api-gateway
+    environment:
+      ENV: dev
+      LOG_LEVEL: debug
+      PORT: 8080
+      REDIS_URL: redis://redis:6379
+      AUTH_SERVICE_URL: http://auth-service:8081
+      BODY_SERVICE_URL: http://body-service:8082
+      GARMENT_SERVICE_URL: http://garment-service:8083
+      TRTON_SERVICE_URL: http://tryon-service:8084
+      ANALYTICS_SERVICE_URL: http://analytics-service:8085
+      BILLING_SERVICE_URL: http://billing-service:8086
+      WEBHOOK_SERVICE_URL: http://webhook-service:8087
+    ports:
+      - "8080:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  auth-service:
+    build:
+      context: ../../apps/auth-service
+      dockerfile: Dockerfile
+    container_name: vto-auth-service
+    environment:
+      ENV: dev
+      LOG_LEVEL: debug
+      PORT: 8081
+      DATABASE_URL: postgresql://vto:dev_password_change_me@postgres:5432/vto?sslmode=disable
+      REDIS_URL: redis://redis:6379
+      JWT_SIGNING_KEY_ID: key-1
+      JWT_PRIVATE_KEY_PATH: /run/secrets/jwt-private
+      JWT_PUBLIC_KEY_PATH: /run/secrets/jwt-public
+    volumes:
+      - ../../infrastructure/dev-keys:/run/secrets:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  body-service:
+    build:
+      context: ../../apps/body-service
+      dockerfile: Dockerfile
+    container_name: vto-body-service
+    environment:
+      ENV: dev
+      LOG_LEVEL: debug
+      PORT: 8082
+      DATABASE_URL: postgresql://vto:dev_password_change_me@postgres:5432/vto?sslmode=disable
+      REDIS_URL: redis://redis:6379
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: vto_dev
+      S3_SECRET_KEY: dev_password_change_me
+      S3_BUCKET: vto-prod-body-profiles
+      KMS_KEY_ID: dev-key
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # (Other services follow the same pattern — uncomment as they're implemented)
+  # garment-service:
+  #   build: ../../apps/garment-service
+  #   ...
+  # tryon-service:
+  #   build: ../../apps/tryon-service
+  #   ...
+  # analytics-service:
+  #   build: ../../apps/analytics-service
+  #   ...
+
+  # ============================================================
+  # AI INFERENCE (Triton — only run when developing AI features)
+  # ============================================================
+  # triton:
+  #   image: nvcr.io/nvidia/tritonserver:24.03-py3
+  #   container_name: vto-triton
+  #   runtime: nvidia
+  #   environment:
+  #     NVIDIA_VISIBLE_DEVICES: all
+  #   volumes:
+  #     - ../../ai/model_repo:/models
+  #   command: tritonserver --model-repository=/models --http-port=8000 --grpc-port=8001 --metrics-port=8002
+  #   ports:
+  #     - "8000:8000"
+  #     - "8001:8001"
+  #     - "8002:8002"
+
+volumes:
+  pgdata:
+  redisdata:
+  chdata:
+  kafkadata:
+  miniodata:

@@ -1,0 +1,6 @@
+# Staging environment variables
+# Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored.
+
+aws_region  = "us-east-1"
+name_prefix = "vto-staging"
+git_sha     = "manual"

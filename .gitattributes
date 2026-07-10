@@ -1,0 +1,27 @@
+# Git LFS tracking for large binary assets
+# AI model weights
+ai/lora_adapters/**/*.safetensors filter=lfs diff=lfs merge=lfs -text
+ai/lora_adapters/**/*.bin filter=lfs diff=lfs merge=lfs -text
+ai/checkpoints/**/* filter=lfs diff=lfs merge=lfs -text
+
+# Evaluation golden set
+ai/evaluation/golden_set/**/*.png filter=lfs diff=lfs merge=lfs -text
+ai/evaluation/golden_set/**/*.jpg filter=lfs diff=lfs merge=lfs -text
+ai/evaluation/golden_set/**/*.webp filter=lfs diff=lfs merge=lfs -text
+
+# Datasets
+ai/datasets/raw/**/* filter=lfs diff=lfs merge=lfs -text
+
+# Default text for everything else
+* text=auto eol=lf
+*.go text eol=lf
+*.py text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.md text eol=lf
+*.tf text eol=lf
+*.sh text eol=lf

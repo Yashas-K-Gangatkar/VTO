@@ -1,0 +1,18 @@
+{
+  "name": "@vto/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenAPI spec + generated clients for VTO API",
+  "main": "generated/typescript/index.ts",
+  "scripts": {
+    "gen:typescript": "openapi-typescript-codegen --input openapi.yaml --output generated/typescript --client fetch",
+    "gen:go": "oapi-codegen --package vtoapi --generate types,client -o generated/go/client.go openapi.yaml",
+    "gen:python": "openapi-python-client generate --path openapi.yaml --output-path generated/python",
+    "validate": "openapi-generator-cli validate -i openapi.yaml",
+    "build": "pnpm run gen:typescript"
+  },
+  "devDependencies": {
+    "openapi-typescript-codegen": "^0.29.0",
+    "openapi-generator-cli": "^7.6.0"
+  }
+}

@@ -1,0 +1,1693 @@
+openapi: 3.1.0
+info:
+  title: VTO API
+  version: 1.0.0
+  description: |
+    Enterprise SDK + API platform for AI Virtual Try-On.
+
+    ## Authentication
+
+    Three-layer auth model:
+    - **Server-to-server:** OAuth 2.0 Client Credentials (retailer backend → platform)
+    - **SDK-to-platform:** Scoped JWT, 1h TTL, minted by retailer backend
+    - **Biometric consent:** Per body scan, signed and logged
+
+    See [Authentication](#tag/Authentication) for token issuance endpoints.
+
+    ## Versioning
+
+    URL-based versioning (`/v1/`). 24-month stability promise per major version.
+    Field additions are non-breaking; field removals are breaking.
+
+    ## Errors
+
+    All errors use RFC 7807 Problem Details format.
+
+  contact:
+    name: VTO Support
+    email: support@vto.example
+    url: https://docs.vto.example
+  license:
+    name: Proprietary
+    url: https://vto.example/license
+
+servers:
+  - url: https://api.vto.example
+    description: Production
+  - url: https://api.staging.vto.example
+    description: Staging
+  - url: http://localhost:8080
+    description: Local development
+
+tags:
+  - name: Authentication
+    description: Token issuance, revocation, JWKS, API keys, consent
+  - name: Body
+    description: Body profile CRUD (shopper-scoped)
+  - name: Catalog
+    description: Garment catalog ingestion and digitization
+  - name: Try-On
+    description: Virtual try-on generation
+  - name: Events
+    description: Shopper event tracking
+  - name: Attribution
+    description: Purchase and return attribution
+  - name: Analytics
+    description: Aggregate retailer metrics
+  - name: Billing
+    description: Usage, invoices, forecast
+  - name: Webhooks
+    description: Webhook endpoint management and delivery history
+  - name: Health
+    description: Service health and status
+
+security:
+  - bearerAuth: []
+  - serverToServer: []
+
+paths:
+  /v1/health:
+    get:
+      tags: [Health]
+      summary: Liveness check
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+
+  /v1/status:
+    get:
+      tags: [Health]
+      summary: Current incidents
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+
+  # ============================================================
+  # AUTHENTICATION
+  # ============================================================
+  /v1/tokens:
+    post:
+      tags: [Authentication]
+      summary: Mint a scoped shopper token (server-to-server)
+      description: |
+        Retailer backend mints a short-lived (1h) shopper token scoped to a specific
+        shopper. The SDK uses this token for all subsequent calls.
+      security:
+        - serverToServer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRequest'
+      responses:
+        '200':
+          description: Token minted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /v1/tokens/revoke:
+    post:
+      tags: [Authentication]
+      summary: Revoke a shopper token
+      security:
+        - serverToServer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [shopper_token_id]
+              properties:
+                shopper_token_id:
+                  type: string
+                  description: The shopper token ID to revoke
+      responses:
+        '204':
+          description: Revoked
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/.well-known/jwks.json:
+    get:
+      tags: [Authentication]
+      summary: JWKS for JWT verification
+      security: []
+      responses:
+        '200':
+          description: JWKS
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JWKS'
+
+  /v1/api-keys:
+    get:
+      tags: [Authentication]
+      summary: List API keys
+      security:
+        - serverToServer: []
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyList'
+    post:
+      tags: [Authentication]
+      summary: Create an API key
+      security:
+        - serverToServer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiKeyCreate'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKey'
+
+  /v1/api-keys/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ApiKeyId'
+    delete:
+      tags: [Authentication]
+      summary: Revoke an API key
+      security:
+        - serverToServer: []
+      responses:
+        '204':
+          description: Revoked
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/consent:
+    post:
+      tags: [Authentication]
+      summary: Record biometric consent
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsentRecord'
+      responses:
+        '201':
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsentReceipt'
+
+  # ============================================================
+  # BODY PROFILES
+  # ============================================================
+  /v1/body_profiles:
+    post:
+      tags: [Body]
+      summary: Create a body profile (SDK)
+      description: |
+        Uploads encrypted body scan data. Triggers async SMPL-X fitting.
+        Returns a profile_id immediately; status updates via polling or webhook.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BodyProfileCreate'
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Profile creation accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BodyProfileCreateResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /v1/body_profiles/{id}:
+    parameters:
+      - $ref: '#/components/parameters/BodyProfileId'
+    get:
+      tags: [Body]
+      summary: Get body profile metadata
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BodyProfile'
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Body]
+      summary: Delete a body profile (shopper-initiated)
+      description: Triggers deletion within 72h SLA per DR-011.
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Deletion accepted
+
+  /v1/body_profiles/{id}/consent:
+    parameters:
+      - $ref: '#/components/parameters/BodyProfileId'
+    get:
+      tags: [Body]
+      summary: Get consent history for a body profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ConsentReceipt'
+
+  # ============================================================
+  # CATALOG
+  # ============================================================
+  /v1/catalog/skus:
+    get:
+      tags: [Catalog]
+      summary: List SKUs
+      security:
+        - serverToServer: []
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/DigitizationStatus'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkuList'
+    post:
+      tags: [Catalog]
+      summary: Push a single SKU
+      security:
+        - serverToServer: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SkuInput'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sku'
+
+  /v1/catalog/skus/{sku}:
+    parameters:
+      - $ref: '#/components/parameters/SkuCode'
+    get:
+      tags: [Catalog]
+      summary: Get SKU by code
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sku'
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Catalog]
+      summary: Remove SKU from platform
+      security:
+        - serverToServer: []
+      responses:
+        '204':
+          description: Removed
+
+  /v1/catalog/skus/{sku}/redigitize:
+    parameters:
+      - $ref: '#/components/parameters/SkuCode'
+    post:
+      tags: [Catalog]
+      summary: Re-digitize a SKU
+      security:
+        - serverToServer: []
+      responses:
+        '202':
+          description: Re-digitization accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sku'
+
+  /v1/catalog/batch:
+    post:
+      tags: [Catalog]
+      summary: Bulk push SKUs (async)
+      security:
+        - serverToServer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [skus]
+              properties:
+                skus:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/SkuInput'
+                  maxItems: 1000
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchJob'
+
+  /v1/catalog/batch/{job_id}:
+    parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [Catalog]
+      summary: Get batch job status
+      security:
+        - serverToServer: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchJob'
+
+  # ============================================================
+  # TRY-ON
+  # ============================================================
+  /v1/tryons:
+    post:
+      tags: [Try-On]
+      summary: Request a try-on generation
+      description: |
+        Async endpoint. Returns a tryon_id immediately; poll /v1/tryons/{id}
+        for status, or register a webhook for tryon.succeeded/tryon.failed events.
+        Billing occurs on tryon.viewed, not on generation.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TryOnRequest'
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TryOnResponse'
+
+  /v1/tryons/{id}:
+    parameters:
+      - $ref: '#/components/parameters/TryOnId'
+    get:
+      tags: [Try-On]
+      summary: Poll try-on status
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TryOnResult'
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/tryons/{id}/image:
+    parameters:
+      - $ref: '#/components/parameters/TryOnId'
+    get:
+      tags: [Try-On]
+      summary: Redirect to signed CDN URL
+      security:
+        - bearerAuth: []
+      responses:
+        '302':
+          description: Redirect to CloudFront signed URL
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri
+
+  /v1/tryons/{id}/views:
+    parameters:
+      - $ref: '#/components/parameters/TryOnId'
+    post:
+      tags: [Try-On]
+      summary: Request additional view (back, side)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [view]
+              properties:
+                view:
+                  type: string
+                  enum: [front, back, side]
+      responses:
+        '202':
+          description: Accepted
+
+  # ============================================================
+  # EVENTS
+  # ============================================================
+  /v1/events:
+    post:
+      tags: [Events]
+      summary: Track a single event
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Event'
+      responses:
+        '204':
+          description: Accepted
+
+  /v1/events/batch:
+    post:
+      tags: [Events]
+      summary: Track a batch of events
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [events]
+              properties:
+                events:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Event'
+                  maxItems: 50
+      responses:
+        '204':
+          description: Accepted
+
+  # ============================================================
+  # ATTRIBUTION
+  # ============================================================
+  /v1/attribution/purchase:
+    post:
+      tags: [Attribution]
+      summary: Report a purchase tied to a try-on
+      security:
+        - serverToServer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurchaseAttribution'
+      responses:
+        '204':
+          description: Accepted
+
+  /v1/attribution/return:
+    post:
+      tags: [Attribution]
+      summary: Report a return tied to a try-on
+      security:
+        - serverToServer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReturnAttribution'
+      responses:
+        '204':
+          description: Accepted
+
+  # ============================================================
+  # ANALYTICS
+  # ============================================================
+  /v1/analytics/summary:
+    get:
+      tags: [Analytics]
+      summary: Aggregate metrics for a date range
+      security:
+        - serverToServer: []
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsSummary'
+
+  /v1/analytics/funnel:
+    get:
+      tags: [Analytics]
+      summary: Funnel metrics
+      security:
+        - serverToServer: []
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FunnelMetrics'
+
+  /v1/analytics/top_skus:
+    get:
+      tags: [Analytics]
+      summary: Top SKUs by try-on count
+      security:
+        - serverToServer: []
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TopSku'
+
+  /v1/analytics/returns_delta:
+    get:
+      tags: [Analytics]
+      summary: Return rate comparison (try-on vs non-try-on)
+      security:
+        - serverToServer: []
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReturnsDelta'
+
+  # ============================================================
+  # BILLING
+  # ============================================================
+  /v1/billing/usage:
+    get:
+      tags: [Billing]
+      summary: Current month usage
+      security:
+        - serverToServer: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Usage'
+
+  /v1/billing/invoices:
+    get:
+      tags: [Billing]
+      summary: List invoices
+      security:
+        - serverToServer: []
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceList'
+
+  /v1/billing/invoices/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Billing]
+      summary: Get invoice PDF
+      security:
+        - serverToServer: []
+      responses:
+        '200':
+          description: PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+
+  /v1/billing/forecast:
+    get:
+      tags: [Billing]
+      summary: Forecasted month-end bill
+      security:
+        - serverToServer: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Forecast'
+
+  # ============================================================
+  # WEBHOOKS
+  # ============================================================
+  /v1/webhooks/endpoints:
+    get:
+      tags: [Webhooks]
+      summary: List webhook endpoints
+      security:
+        - serverToServer: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WebhookEndpoint'
+    post:
+      tags: [Webhooks]
+      summary: Register a webhook endpoint
+      security:
+        - serverToServer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookEndpointCreate'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookEndpoint'
+
+  /v1/webhooks/endpoints/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    delete:
+      tags: [Webhooks]
+      summary: Remove a webhook endpoint
+      security:
+        - serverToServer: []
+      responses:
+        '204':
+          description: Removed
+
+  /v1/webhooks/endpoints/{id}/test:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Webhooks]
+      summary: Send a test event
+      security:
+        - serverToServer: []
+      responses:
+        '202':
+          description: Test event queued
+
+  /v1/webhooks/deliveries:
+    get:
+      tags: [Webhooks]
+      summary: List webhook deliveries
+      security:
+        - serverToServer: []
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - name: endpoint_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookDeliveryList'
+
+  /v1/webhooks/deliveries/{id}/retry:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Webhooks]
+      summary: Manually retry a delivery
+      security:
+        - serverToServer: []
+      responses:
+        '202':
+          description: Retry queued
+
+# ============================================================
+# COMPONENTS
+# ============================================================
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Scoped shopper token (1h TTL) minted by retailer backend via /v1/tokens
+    serverToServer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: OAuth 2.0 Client Credentials token (retailer backend)
+
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+      description: Pagination cursor (opaque)
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        default: 50
+        minimum: 1
+        maximum: 200
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema:
+        type: string
+        format: uuid
+      description: Prevents duplicate side effects on retry
+    BodyProfileId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    TryOnId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    SkuCode:
+      name: sku
+      in: path
+      required: true
+      schema:
+        type: string
+    ApiKeyId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ValidationError:
+      description: Validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    Health:
+      type: object
+      required: [status, version, timestamp]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded, down]
+        version:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    Status:
+      type: object
+      properties:
+        incidents:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              severity:
+                type: string
+                enum: [minor, major, critical]
+              message:
+                type: string
+              started_at:
+                type: string
+                format: date-time
+
+    Error:
+      type: object
+      required: [type, title, status, detail, instance]
+      properties:
+        type:
+          type: string
+          format: uri
+          description: URL to docs for this error
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+          description: Request ID for tracing
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              code:
+                type: string
+              field:
+                type: string
+              value:
+                type: string
+
+    TokenRequest:
+      type: object
+      required: [shopper_id, scopes]
+      properties:
+        shopper_id:
+          type: string
+          description: Opaque retailer-issued shopper ID
+          maxLength: 200
+        scopes:
+          type: array
+          items:
+            type: string
+            enum: [body_scan, tryon, events, attribution]
+        ttl_seconds:
+          type: integer
+          default: 3600
+          minimum: 60
+          maximum: 3600
+
+    TokenResponse:
+      type: object
+      required: [access_token, token_type, expires_in, shopper_token_id]
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          enum: [Bearer]
+        expires_in:
+          type: integer
+        shopper_token_id:
+          type: string
+
+    JWKS:
+      type: object
+      properties:
+        keys:
+          type: array
+          items:
+            type: object
+
+    ApiKeyCreate:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        scopes:
+          type: array
+          items:
+            type: string
+
+    ApiKey:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        key_prefix:
+          type: string
+        key:
+          type: string
+          description: Full key — shown only once on creation
+        scopes:
+          type: array
+          items:
+            type: string
+        last_used_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    ApiKeyList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiKey'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+
+    PageMeta:
+      type: object
+      properties:
+        request_id:
+          type: string
+        cursor:
+          type: string
+          nullable: true
+        has_more:
+          type: boolean
+
+    ConsentRecord:
+      type: object
+      required: [consent_type, consent_version, consented_at, signature]
+      properties:
+        consent_type:
+          type: string
+          enum: [body_scan, training_use]
+        consent_version:
+          type: string
+        consented_at:
+          type: string
+          format: date-time
+        signature:
+          type: string
+
+    ConsentReceipt:
+      allOf:
+        - $ref: '#/components/schemas/ConsentRecord'
+        - type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            retailer_id:
+              type: string
+
+    BodyProfileCreate:
+      type: object
+      required: [scan_data, metadata, consent_receipt]
+      properties:
+        scan_data:
+          type: string
+          format: binary
+          description: Encrypted mesh file
+        metadata:
+          type: string
+          description: JSON string of {scan_device, scan_quality_score, measurements}
+        consent_receipt:
+          type: string
+          description: JSON string of consent record
+
+    BodyProfileCreateResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+            status:
+              type: string
+              enum: [processing, ready, failed]
+            estimated_ready_seconds:
+              type: integer
+            poll_url:
+              type: string
+
+    BodyProfile:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+            status:
+              type: string
+              enum: [processing, ready, failed]
+            measurements:
+              type: object
+              properties:
+                chest_cm:
+                  type: number
+                waist_cm:
+                  type: number
+                hip_cm:
+                  type: number
+                inseam_cm:
+                  type: number
+                height_cm:
+                  type: number
+            scan_device:
+              type: string
+            quality_score:
+              type: number
+            created_at:
+              type: string
+              format: date-time
+            expires_at:
+              type: string
+              format: date-time
+
+    DigitizationStatus:
+      type: string
+      enum: [pending, processing, ready, failed, manual_qc]
+
+    SkuInput:
+      type: object
+      required: [sku, name, category, image_urls]
+      properties:
+        sku:
+          type: string
+          maxLength: 200
+        name:
+          type: string
+          maxLength: 500
+        category:
+          type: string
+        gender:
+          type: string
+          enum: [women, men, unisex, kids]
+        color:
+          type: string
+        fabric:
+          type: string
+        image_urls:
+          type: array
+          items:
+            type: string
+            format: uri
+          minItems: 1
+          maxItems: 8
+        size_chart:
+          type: object
+        metadata:
+          type: object
+
+    Sku:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            sku:
+              type: string
+            name:
+              type: string
+            category:
+              type: string
+            digitization_status:
+              $ref: '#/components/schemas/DigitizationStatus'
+            quality_score:
+              type: number
+            digitized_at:
+              type: string
+              format: date-time
+              nullable: true
+            representation:
+              type: object
+              properties:
+                front_image_url:
+                  type: string
+                back_image_url:
+                  type: string
+                segmentation_mask_url:
+                  type: string
+                attributes:
+                  type: object
+
+    SkuList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Sku'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+
+    BatchJob:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            job_id:
+              type: string
+            total_skus:
+              type: integer
+            status:
+              type: string
+              enum: [processing, completed, failed]
+
+    TryOnRequest:
+      type: object
+      required: [body_profile_id, garment_sku]
+      properties:
+        body_profile_id:
+          type: string
+        garment_sku:
+          type: string
+        size:
+          type: string
+          description: Omit for recommended size
+        view:
+          type: string
+          enum: [front, back, side]
+          default: front
+
+    TryOnResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            tryon_id:
+              type: string
+            status:
+              type: string
+              enum: [pending, processing, succeeded, failed]
+            estimated_wait_seconds:
+              type: integer
+            poll_url:
+              type: string
+
+    TryOnResult:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            tryon_id:
+              type: string
+            status:
+              type: string
+              enum: [pending, processing, succeeded, failed, expired]
+            image_url:
+              type: string
+              format: uri
+            image_url_expires_at:
+              type: string
+              format: date-time
+            thumbnail_url:
+              type: string
+              format: uri
+            metadata:
+              type: object
+              properties:
+                model_version:
+                  type: string
+                quality_score:
+                  type: number
+                render_time_ms:
+                  type: integer
+            billing:
+              type: object
+              properties:
+                billed:
+                  type: boolean
+                will_bill_on:
+                  type: string
+                  enum: [view, never]
+
+    Event:
+      type: object
+      required: [event_id, event_type, timestamp]
+      properties:
+        event_id:
+          type: string
+          format: uuid
+        event_type:
+          type: string
+          enum:
+            - tryon_button_shown
+            - tryon_button_tapped
+            - scan_started
+            - scan_completed
+            - scan_abandoned
+            - tryon_requested
+            - tryon_succeeded
+            - tryon_failed
+            - tryon_viewed
+            - tryon_swiped
+            - tryon_shared
+            - add_to_cart_after_tryon
+            - purchase_after_tryon
+        timestamp:
+          type: string
+          format: date-time
+        session_id:
+          type: string
+        tryon_id:
+          type: string
+        garment_sku:
+          type: string
+        body_profile_id:
+          type: string
+        device:
+          type: object
+          properties:
+            platform:
+              type: string
+            os_version:
+              type: string
+            app_version:
+              type: string
+            device_model:
+              type: string
+        locale:
+          type: string
+        custom_attributes:
+          type: object
+
+    PurchaseAttribution:
+      type: object
+      required: [tryon_id, order_id, purchased_sku, purchased_at]
+      properties:
+        tryon_id:
+          type: string
+        order_id:
+          type: string
+        order_total_cents:
+          type: integer
+        purchased_sku:
+          type: string
+        purchased_size:
+          type: string
+        purchased_at:
+          type: string
+          format: date-time
+
+    ReturnAttribution:
+      type: object
+      required: [tryon_id, order_id, returned_at]
+      properties:
+        tryon_id:
+          type: string
+        order_id:
+          type: string
+        returned_at:
+          type: string
+          format: date-time
+        return_reason:
+          type: string
+
+    AnalyticsSummary:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            period:
+              type: object
+            metrics:
+              type: object
+              properties:
+                tryons_generated:
+                  type: integer
+                tryons_viewed:
+                  type: integer
+                scan_completions:
+                  type: integer
+                billed_amount_cents:
+                  type: integer
+                tryon_to_cart_rate:
+                  type: number
+                tryon_to_purchase_rate:
+                  type: number
+                return_rate_tryon:
+                  type: number
+                return_rate_non_tryon:
+                  type: number
+
+    FunnelMetrics:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            button_shown:
+              type: integer
+            button_tapped:
+              type: integer
+            scan_started:
+              type: integer
+            scan_completed:
+              type: integer
+            tryon_succeeded:
+              type: integer
+            tryon_viewed:
+              type: integer
+            add_to_cart:
+              type: integer
+            purchase:
+              type: integer
+
+    TopSku:
+      type: object
+      properties:
+        sku:
+          type: string
+        name:
+          type: string
+        tryon_count:
+          type: integer
+        view_count:
+          type: integer
+        purchase_count:
+          type: integer
+
+    ReturnsDelta:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            tryon_return_rate:
+              type: number
+            non_tryon_return_rate:
+              type: number
+            delta:
+              type: number
+            sample_size:
+              type: integer
+
+    Usage:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            period:
+              type: string
+            tryons_viewed:
+              type: integer
+            tier:
+              type: object
+              properties:
+                name:
+                  type: string
+                price_per_tryon_cents:
+                  type: integer
+            current_usage_cents:
+              type: integer
+            minimum_commit_cents:
+              type: integer
+            forecasted_total_cents:
+              type: integer
+
+    InvoiceList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              period_start:
+                type: string
+                format: date-time
+              period_end:
+                type: string
+                format: date-time
+              total_cents:
+                type: integer
+              status:
+                type: string
+              due_date:
+                type: string
+                format: date-time
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+
+    Forecast:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            current_usage_cents:
+              type: integer
+            projected_month_end_cents:
+              type: integer
+            projected_tier:
+              type: string
+
+    WebhookEndpointCreate:
+      type: object
+      required: [url, events]
+      properties:
+        url:
+          type: string
+          format: uri
+        events:
+          type: array
+          items:
+            type: string
+          minItems: 1
+
+    WebhookEndpoint:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            url:
+              type: string
+            events:
+              type: array
+              items:
+                type: string
+            secret:
+              type: string
+              description: Signing secret — shown only once on creation
+            is_active:
+              type: boolean
+            created_at:
+              type: string
+              format: date-time
+
+    WebhookDeliveryList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              event_type:
+                type: string
+              status:
+                type: string
+              attempt_number:
+                type: integer
+              response_code:
+                type: integer
+              next_retry_at:
+                type: string
+                format: date-time
+                nullable: true
+              delivered_at:
+                type: string
+                format: date-time
+                nullable: true
+              created_at:
+                type: string
+                format: date-time
+        meta:
+          $ref: '#/components/schemas/PageMeta'

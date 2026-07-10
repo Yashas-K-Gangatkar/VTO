@@ -1,0 +1,222 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # ============================================================
+  # Detect changed paths so we only run relevant checks
+  # ============================================================
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      go: ${{ steps.filter.outputs.go }}
+      ts: ${{ steps.filter.outputs.ts }}
+      py: ${{ steps.filter.outputs.py }}
+      infra: ${{ steps.filter.outputs.infra }}
+      sdk-ios: ${{ steps.filter.outputs.sdk-ios }}
+      sdk-android: ${{ steps.filter.outputs.sdk-android }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            go:
+              - 'apps/**.go'
+              - 'apps/**/go.mod'
+              - 'packages/**.go'
+            ts:
+              - 'dashboard/**'
+              - 'packages/**.ts'
+              - 'sdks/web/**'
+            py:
+              - 'ai/**.py'
+              - 'ai/pyproject.toml'
+            infra:
+              - 'infrastructure/**'
+              - '.github/workflows/**'
+            sdk-ios:
+              - 'sdks/ios/**'
+            sdk-android:
+              - 'sdks/android/**'
+
+  # ============================================================
+  # Go: lint + test
+  # ============================================================
+  go-checks:
+    name: Go lint + test
+    needs: changes
+    if: ${{ needs.changes.outputs.go == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          working-directory: apps
+      - name: Test
+        run: |
+          for dir in apps/*/; do
+            if [ -f "$$dir/go.mod" ]; then
+              echo "Testing $$dir"
+              (cd $$dir && go test -race -coverprofile=coverage.txt ./...)
+            fi
+          done
+
+  # ============================================================
+  # TypeScript: lint + test
+  # ============================================================
+  ts-checks:
+    name: TS lint + test
+    needs: changes
+    if: ${{ needs.changes.outputs.ts == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm test
+
+  # ============================================================
+  # Python: lint + test (AI engine)
+  # ============================================================
+  py-checks:
+    name: Python lint + test
+    needs: changes
+    if: ${{ needs.changes.outputs.py == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install ruff black mypy pytest
+      - run: cd ai && ruff check .
+      - run: cd ai && black --check .
+      - run: cd ai && mypy --strict .
+      - run: cd ai && pytest
+
+  # ============================================================
+  # Infra: terraform validate
+  # ============================================================
+  terraform-checks:
+    name: Terraform validate
+    needs: changes
+    if: ${{ needs.changes.outputs.infra == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.7.0'
+      - name: fmt
+        run: cd infrastructure/terraform && terraform fmt -check -recursive
+      - name: validate dev
+        run: |
+          cd infrastructure/terraform/environments/dev
+          terraform init -backend=false
+          terraform validate
+
+  # ============================================================
+  # Security: SAST + dependency scan + secret scan
+  # ============================================================
+  security-scan:
+    name: Security scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Semgrep
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: >-
+            p/owasp-top-ten
+            p/golang
+            p/python
+            p/typescript
+      - name: Snyk
+        uses: snyk/actions/golang@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
+      - name: git-secrets
+        run: |
+          git clone https://github.com/awslabs/git-secrets.git /tmp/git-secrets
+          cd /tmp/git-secrets && make install
+          cd $GITHUB_WORKSPACE
+          git-secrets --scan-history
+
+  # ============================================================
+  # Build all Docker images (verify Dockerfiles are valid)
+  # ============================================================
+  docker-build:
+    name: Docker build
+    needs: [go-checks]
+    if: ${{ needs.changes.outputs.go == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build all service images
+        run: |
+          for dir in apps/*/; do
+            if [ -f "$$dir/Dockerfile" ]; then
+              svc=$$(basename $$dir)
+              echo "Building $$svc"
+              docker build -t vto/$$svc:ci $$dir
+            fi
+          done
+
+  # ============================================================
+  # OpenAPI validation
+  # ============================================================
+  openapi-validate:
+    name: OpenAPI validate
+    needs: changes
+    if: ${{ needs.changes.outputs.ts == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npx @redocly/cli@latest lint packages/contracts/openapi.yaml
+
+  # ============================================================
+  # Required: all must pass to merge
+  # ============================================================
+  required:
+    name: All checks pass
+    runs-on: ubuntu-latest
+    needs: [go-checks, ts-checks, py-checks, terraform-checks, security-scan, docker-build, openapi-validate]
+    if: always()
+    steps:
+      - name: Verify all required jobs succeeded
+        run: |
+          for job in go-checks ts-checks py-checks terraform-checks security-scan docker-build openapi-validate; do
+            result=\${{ needs.$job.result }}
+            if [ "$$result" != "success" ] && [ "$$result" != "skipped" ]; then
+              echo "Job $$job failed (result: $$result)"
+              exit 1
+            fi
+          done
+          echo "All required checks passed"

@@ -1,0 +1,61 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+dist/
+build/
+.next/
+target/
+bin/
+obj/
+
+# Go
+*.exe
+*.test
+*.out
+
+# Environment
+.env
+.env.local
+.env.*.local
+!.env.example
+doppler.yaml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build artifacts
+*.log
+*.tmp
+coverage/
+.coverage
+htmlcov/
+*.lcov
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+*.tfvars
+!*.tfvars.example
+
+# Docker
+*.pid
+
+# OS
+Thumbs.db
+
+# Secrets — never commit
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/

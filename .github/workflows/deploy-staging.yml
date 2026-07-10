@@ -1,0 +1,68 @@
+name: Deploy to staging
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Deploy to staging
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_STAGING_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push all service images
+        run: |
+          for dir in apps/*/; do
+            if [ -f "$$dir/Dockerfile" ]; then
+              svc=$$(basename $$dir)
+              echo "Building $$svc"
+              docker build -t $$ECR_REGISTRY/vto/$$svc:$${GITHUB_SHA::7} $$dir
+              docker push $$ECR_REGISTRY/vto/$$svc:$${GITHUB_SHA::7}
+            fi
+          done
+        env:
+          ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.7.0'
+
+      - name: Terraform apply
+        run: |
+          cd infrastructure/terraform/environments/staging
+          terraform init -backend-config="bucket=$TF_STATE_BUCKET" -backend-config="key=staging/terraform.tfstate"
+          terraform apply -auto-approve -var="git_sha=$GITHUB_SHA"
+        env:
+          TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
+          TF_VAR_aws_region: us-east-1
+
+      - name: Smoke test
+        run: |
+          sleep 60  # wait for ECS to roll
+          for i in 1 2 3 4 5; do
+            if curl -fsS https://api.staging.vto.example/v1/health; then
+              echo "Smoke test passed"
+              exit 0
+            fi
+            echo "Attempt $$i failed, retrying in 10s..."
+            sleep 10
+          done
+          echo "Smoke test failed"
+          exit 1
