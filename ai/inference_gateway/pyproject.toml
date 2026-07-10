@@ -1,0 +1,17 @@
+[project]
+name = "vto-inference-gateway"
+version = "0.1.0"
+description = "GPU inference gateway for VTO try-on jobs"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["tests/*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

@@ -1,21 +1,19 @@
-# garment-service
+# Garment Service
 
-Catalog CRUD. Tracks digitization status. Triggers digitization pipeline.
+Catalog CRUD + digitization status + QR code generation.
 
-## Configuration
+## Endpoints
 
-All config via environment variables. See `internal/config/config.go`.
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | /health | None | Liveness check |
+| POST | /v1/catalog/skus | JWT | Create a SKU |
+| GET | /v1/catalog/skus | JWT | List SKUs |
+| GET | /v1/catalog/skus/{sku} | JWT | Get SKU by code |
+| DELETE | /v1/catalog/skus/{sku} | JWT | Delete SKU |
+| POST | /v1/qr-codes | JWT | Generate QR code for a SKU |
+| GET | /v1/qr-codes/verify/{payload} | None | Verify a QR code (public) |
 
 ## Run locally
 
-```bash
-go run ./cmd/server
-```
-
-Health check: `curl http://localhost:8083/health`
-
-## Tests
-
-```bash
-go test ./...
-```
+    go run ./cmd/server

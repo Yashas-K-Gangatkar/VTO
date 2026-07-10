@@ -799,3 +799,43 @@
 - **Owner:** Principal Software Architect + CTO.
 - **Priority:** P0.
 - **Status:** Adopted.
+
+---
+
+## Decisions Added During Pricing Pivot + QR Scan Sprint (2026-07-10)
+
+### DR-086 — Pricing model: dual billing (per-try-on for online, per-purchase for in-store QR)
+- **Date:** 2026-07-10
+- **Decision:** Dual billing model. Online try-on bills per-try-on-viewed at $0.15 (DR-025). In-store QR scan flow bills per-attributed-purchase at 1-5 INR per purchase.
+- **Rationale:** In-store QR shoppers have high intent. Per-purchase aligns with retailer's "free to integrate" demand. Online try-on has lower conversion so per-try-on protects unit economics.
+- **Evidence Required:** A/B test both models with first 3 retailers.
+- **Owner:** CEO + CTO.
+- **Priority:** P0.
+- **Status:** Adopted.
+
+### DR-087 — QR code on physical garment tags as in-store entry point
+- **Date:** 2026-07-10
+- **Decision:** Each garment in physical retail stores carries a QR code on its price tag. Shopper scans QR using retailer's existing app (with our SDK integrated). QR contains: retailer_id, sku, signed timestamp. SDK calls POST /v1/tryons/qr-scan to create a try-on.
+- **Rationale:** This is the core innovation. Physical retail shoppers can't try on multiple garments without queueing for fitting rooms. QR scan to instant virtual try-on in their phone converts physical browsing to informed purchases.
+- **Evidence Required:** QR scan to purchase conversion rate > 15% in pilot.
+- **Owner:** CTO + Head of Product.
+- **Priority:** P0.
+- **Status:** Adopted.
+
+### DR-088 — QR code generation API: POST /v1/qr-codes
+- **Date:** 2026-07-10
+- **Decision:** Retailers generate QR codes via our dashboard or API. Endpoint: POST /v1/qr-codes with {sku} returns a PNG QR code printable on garment tags. QR payload: vto://qr?p={base64_signed_payload}. Token expires after 2 years (long-lived; physical tags persist).
+- **Rationale:** Self-serve QR generation lets retailers deploy without our intervention. Long-lived tokens because physical tags can't be re-printed cheaply. Signed tokens prevent QR cloning/forgery.
+- **Evidence Required:** QR generation throughput > 1000/minute; scan success rate > 99%.
+- **Owner:** CTO.
+- **Priority:** P0.
+- **Status:** Adopted.
+
+### DR-089 — Attribution model: QR scan ID chains to purchase
+- **Date:** 2026-07-10
+- **Decision:** Every QR scan creates a unique qr_scan_id. This ID is returned to the SDK and may be included in the retailer's POS checkout flow. When the retailer's POS records a purchase, it sends the qr_scan_id in the attribution webhook. We bill 1-5 INR per attributed purchase.
+- **Rationale:** QR scan ID is the chain of trust from physical tag to app to try-on to purchase. Without it, we can't attribute purchases to our try-on. Without attribution, we can't bill.
+- **Evidence Required:** Attribution rate > 30% in pilot.
+- **Owner:** CTO + Head of Product.
+- **Priority:** P0.
+- **Status:** Adopted.

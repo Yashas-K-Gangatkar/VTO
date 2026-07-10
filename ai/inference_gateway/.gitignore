@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.Python
+*.egg-info/
+.pytest_cache/
+.coverage
+.venv/
+.env
+/models/
+*.safetensors
+*.log
