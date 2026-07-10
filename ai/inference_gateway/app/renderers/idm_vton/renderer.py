@@ -7,19 +7,23 @@ from app.core.device import DeviceType, detect_device, get_device_info
 from app.renderers.base import RenderError, RenderRequest, RenderResult, Renderer, RendererUnavailableError
 from app.renderers.idm_vton.config import IDMVTONConfig
 from app.renderers.idm_vton.model import IDMVTONModel, ModelNotLoadedError
+from app.renderers.idm_vton.preprocessing import OpenPosePreprocessor, DensePosePreprocessor, HumanParsingPreprocessor, GarmentPreprocessor
 
 logger = logging.getLogger(__name__)
-
 
 class IDMVTONRenderer(Renderer):
     def __init__(self, model_path, device="auto", width=768, height=1024, num_inference_steps=30, guidance_scale=2.0):
         self._device_type = detect_device(device)
         self._width = width
+        self._height = height
         self._config = IDMVTONConfig(model_path=model_path, image_width=width, image_height=height, num_inference_steps=num_inference_steps, guidance_scale=guidance_scale, use_fp16=(self._device_type != DeviceType.CPU))
         self._model = IDMVTONModel(self._config, self._device_type)
+        self._densepose = DensePosePreprocessor()
+        self._parsing = HumanParsingPreprocessor()
+        self._garment_pp = GarmentPreprocessor()
 
     def name(self): return "idm-vton"
-    def version(self): return "v1.0.0"
+    def version(self): return "v1.1.0"
     def device(self): return self._device_type
     def is_ready(self): return self._model.is_loaded
 
@@ -57,21 +61,20 @@ class IDMVTONRenderer(Renderer):
         pipe = self._model.pipe
         if torch is None or pipe is None: raise ModelNotLoadedError("Model not loaded")
         person = request.person_image.convert("RGB").resize((self._config.image_width, self._config.image_height), Image.LANCZOS)
-        garment = request.garment_image.convert("RGB").resize((self._config.image_width, self._config.image_height), Image.LANCZOS)
         if is_warmup:
+            garment = request.garment_image.convert("RGB").resize((self._config.image_width, self._config.image_height), Image.LANCZOS)
             mask = Image.new("L", (self._config.image_width, self._config.image_height), 255)
             densepose = Image.new("RGB", (self._config.image_width, self._config.image_height), (128, 128, 128))
         else:
-            mask = self._generate_agnostic_mask(person)
-            densepose = self._generate_densepose(person)
+            garment = self._garment_pp.process(request.garment_image, self._config.image_width, self._config.image_height)
+            parsing = self._parsing.process(person, self._config.image_width, self._config.image_height)
+            mask = self._parsing.generate_agnostic_mask(parsing)
+            densepose = self._densepose.process(person, self._config.image_width, self._config.image_height)
         generator = None
         if request.seed is not None: generator = torch.Generator(device=self._device_type.value).manual_seed(request.seed)
         result = pipe(image=person, condition_image=garment, mask=mask, densepose=densepose, num_inference_steps=self._config.num_inference_steps, guidance_scale=self._config.guidance_scale, generator=generator, height=self._config.image_height, width=self._config.image_width)
         output = result.images[0] if hasattr(result, "images") else result[0]
         return output.convert("RGB")
-
-    def _generate_agnostic_mask(self, person): return Image.new("L", person.size, 255)
-    def _generate_densepose(self, person): return Image.new("RGB", person.size, (128, 128, 128))
 
     def _compute_quality_score(self, image):
         arr = np.array(image)
