@@ -12,13 +12,14 @@ class ModelNotLoadedError(Exception):
     pass
 
 class IDMVTONModel:
-    def __init__(self, config: IDMVTONConfig, device: DeviceType):
+    def __init__(self, config: IDMVTONConfig, device: DeviceType, use_lcm: bool = True):
         self._config = config
         self._device = device
         self._loaded = False
         self._torch: Any = None
         self._pipe: Any = None
         self._dtype: Any = None
+        self._use_lcm = use_lcm
 
     @property
     def is_loaded(self) -> bool:
@@ -56,7 +57,7 @@ class IDMVTONModel:
 
     def _load_pipeline(self) -> None:
         import torch
-        from diffusers import AutoencoderKL, DDPMScheduler
+        from diffusers import AutoencoderKL, DDPMScheduler, LCMScheduler
         from transformers import CLIPTextModel, CLIPTextModelWithProjection, CLIPTokenizer, CLIPVisionModelWithProjection, CLIPImageProcessor
 
         from app.renderers.idm_vton.src.unet_hacked_tryon import UNet2DConditionModel
@@ -82,7 +83,11 @@ class IDMVTONModel:
         tokenizer_two = CLIPTokenizer.from_pretrained(f"{model_path}/tokenizer_2", use_fast=False)
 
         logger.info("Loading scheduler...")
-        noise_scheduler = DDPMScheduler.from_pretrained(f"{model_path}/scheduler")
+        if self._use_lcm:
+            noise_scheduler = LCMScheduler.from_pretrained(f"{model_path}/scheduler")
+            logger.info("Using LCMScheduler for 4-step inference")
+        else:
+            noise_scheduler = DDPMScheduler.from_pretrained(f"{model_path}/scheduler")
 
         logger.info("Loading main UNet...")
         unet = UNet2DConditionModel.from_pretrained(f"{model_path}/unet", torch_dtype=self._dtype)
@@ -109,6 +114,11 @@ class IDMVTONModel:
             torch_dtype=self._dtype,
         ).to(device_str)
 
+        if self._use_lcm:
+            logger.info("Loading LCM-LoRA weights...")
+            self._pipe.load_lora_weights("latent-consistency/lcm-lora-sdxl")
+            self._pipe.fuse_lora()
+
     def unload(self) -> None:
         if self._pipe is not None:
             del self._pipe
@@ -125,4 +135,5 @@ class IDMVTONModel:
             "loaded": self.is_loaded, "inference_steps": self._config.num_inference_steps,
             "guidance_scale": self._config.guidance_scale,
             "image_size": f"{self._config.image_width}x{self._config.image_height}",
+            "use_lcm": self._use_lcm
         }

@@ -8,24 +8,25 @@ from app.renderers.base import RenderError, RenderRequest, RenderResult, Rendere
 from app.renderers.idm_vton.config import IDMVTONConfig
 from app.renderers.idm_vton.model import IDMVTONModel, ModelNotLoadedError
 from app.renderers.idm_vton.preprocessing import HumanParsingPreprocessor, GarmentPreprocessor
+from app.renderers.idm_vton.uv_mapping.texture_mapper import TextureMapper
 from transformers import CLIPImageProcessor
 import torch
 
 logger = logging.getLogger(__name__)
 
 class IDMVTONRenderer(Renderer):
-    def __init__(self, model_path, device="auto", width=768, height=1024, num_inference_steps=30, guidance_scale=2.0):
+    def __init__(self, model_path, device="auto", width=768, height=1024, num_inference_steps=4, guidance_scale=2.0, use_lcm=True):
         self._device_type = detect_device(device)
         self._width = width
         self._height = height
         self._config = IDMVTONConfig(model_path=model_path, image_width=width, image_height=height, num_inference_steps=num_inference_steps, guidance_scale=guidance_scale, use_fp16=(self._device_type != DeviceType.CPU))
-        self._model = IDMVTONModel(self._config, self._device_type)
+        self._model = IDMVTONModel(self._config, self._device_type, use_lcm=use_lcm)
         self._parsing = HumanParsingPreprocessor()
         self._garment_pp = GarmentPreprocessor()
         self._clip_processor = CLIPImageProcessor()
 
     def name(self): return "idm-vton"
-    def version(self): return "v2.0.0"
+    def version(self): return "v3.0.0-lcm"
     def device(self): return self._device_type
     def is_ready(self): return self._model.is_loaded
 
@@ -46,7 +47,18 @@ class IDMVTONRenderer(Renderer):
         elapsed_ms = int((time.monotonic() - start) * 1000)
         result_image = result_image.resize((self._width, self._height), Image.LANCZOS)
         thumbnail = result_image.resize((self._width // 4, self._height // 4), Image.LANCZOS)
-        return RenderResult(image=result_image, thumbnail=thumbnail, quality_score=self._compute_quality_score(result_image), model_version=self.version(), render_time_ms=elapsed_ms, metadata={"renderer": "idm-vton", "device": self._device_type.value, "view": request.view, "inference_steps": self._config.num_inference_steps, "guidance_scale": self._config.guidance_scale})
+        
+        # Sprint 5: Generate 3D rotatable model
+        try:
+            mapper = TextureMapper(smplx_model_path="models/smplx/smplx.obj")
+            glb_path = mapper.map_texture_to_mesh(result_image, output_path="/tmp/vto_3d_model.glb")
+            metadata_3d = {"glb_path": glb_path}
+        except Exception as e:
+            metadata_3d = {"3d_error": str(e)}
+            
+        metadata = {"renderer": "idm-vton", "device": self._device_type.value, "view": request.view, "inference_steps": self._config.num_inference_steps, "guidance_scale": self._config.guidance_scale, **metadata_3d}
+        return RenderResult(image=result_image, thumbnail=thumbnail, quality_score=self._compute_quality_score(result_image), model_version=self.version(), render_time_ms=elapsed_ms, metadata=metadata)
+
 
     def teardown(self): self._model.unload()
 
