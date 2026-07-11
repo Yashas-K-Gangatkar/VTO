@@ -1,1 +1,2 @@
 timestamp,gpu,device,inference_steps,inference_time_ms,vram_mb,resolution,quality_score,status
+2026-07-11T12:15:59.889642,Apple Silicon (MPS),mps,30,2678196,13593,768x1024,0.827,PASS

@@ -1,0 +1,25 @@
+# IDM-VTON renderer dependencies (heavy — only install when using idm-vton renderer)
+# Install separately: pip install -r requirements-idm-vton.txt
+#
+# These are NOT in the base requirements.txt because they're large (5GB+ with CUDA)
+# and only needed when VTO_RENDERER=idm-vton
+
+# Core ML
+torch>=2.0.0
+torchvision>=0.15.0
+diffusers==0.27.2
+transformers==4.41.2
+accelerate==0.30.1
+safetensors>=0.4.0
+
+# Preprocessing
+opencv-python-headless>=4.8.0
+controlnet-aux>=0.0.7
+onnxruntime>=1.16.0
+
+# Model loading
+huggingface-hub>=0.23.0
+einops>=0.7.0
+
+# Background removal
+rembg>=2.0.50

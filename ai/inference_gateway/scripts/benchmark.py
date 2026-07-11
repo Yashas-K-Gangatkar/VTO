@@ -128,11 +128,6 @@ def run_benchmark(model_path, person_path, garment_path, device, steps, output_d
         guidance_scale=2.0,
     )
 
-    # Override FP16 setting for MPS
-    if device == "mps":
-        renderer._config.use_fp16 = False
-        print("  NOTE: FP16 disabled for MPS compatibility")
-
     renderer.warmup()
     load_time = time.monotonic() - load_start
     print(f"  Model loaded in {load_time:.1f}s")
@@ -261,7 +256,7 @@ def main():
     return run_benchmark(
         model_path=args.model_path,
         person_path=args.person,
-        garment_path=args.garment_path,
+        garment_path=args.garment,
         device=device,
         steps=args.steps,
         output_dir=args.output_dir,
