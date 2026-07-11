@@ -1,0 +1,1 @@
+timestamp,gpu,device,inference_steps,inference_time_ms,vram_mb,resolution,quality_score,status
