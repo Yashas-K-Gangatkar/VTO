@@ -1,0 +1,19 @@
+# Render.com deployment config (free tier)
+# Deploy the VTO API to Render's free web service.
+# Sign up at render.com, create a new Web Service from this repo.
+
+services:
+  - type: web
+    name: vto-api
+    runtime: python
+    plan: free
+    region: oregon
+    buildCommand: pip install -r ai/inference_gateway/requirements.txt
+    startCommand: cd ai/inference_gateway && python -m uvicorn app.standalone_server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: VTO_GPU_ENABLED
+        value: "false"
+      - key: PYTHONPATH
+        value: "ai/inference_gateway"
+    healthCheckPath: /health
+    autoDeploy: true
