@@ -188,7 +188,7 @@ async def try_on(
     """
     if GPU_ENABLED:
         return await _tryon_real(person_image, garment_image, width, height, seed)
-    return _tryon_mock(person_image, garment_image)
+    return await _tryon_mock(person_image, garment_image)
 
 
 async def _tryon_real(
@@ -227,14 +227,12 @@ async def _tryon_real(
     }
 
 
-def _tryon_mock(person: UploadFile, garment: UploadFile) -> dict:
+async def _tryon_mock(person: UploadFile, garment: UploadFile) -> dict:
     """Return the person image as placeholder (no GPU)."""
     from PIL import Image
 
     # Read person image and return it as placeholder
-    import asyncio
-    loop = asyncio.get_event_loop()
-    person_bytes = loop.run_until_complete(person.read())
+    person_bytes = await person.read()
     person_img = Image.open(io.BytesIO(person_bytes)).convert("RGB")
 
     return {
