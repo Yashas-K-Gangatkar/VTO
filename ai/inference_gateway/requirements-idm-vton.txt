@@ -14,12 +14,15 @@ safetensors>=0.4.0
 
 # Preprocessing
 opencv-python-headless>=4.8.0
-controlnet-aux>=0.0.7
-onnxruntime>=1.16.0
+controlnet-aux>=0.0.7          # OpenPose via lllyasviel/ControlNet
+onnxruntime>=1.16.0            # Required by rembg + controlnet_aux
+rembg>=2.0.50                  # Background removal (digital_human + garment pipelines)
+scikit-image>=0.21.0           # Blur detection (Laplacian variance)
 
 # Model loading
 huggingface-hub>=0.23.0
 einops>=0.7.0
 
-# Background removal
-rembg>=2.0.50
+# NOTE: torch must be installed with CUDA support for GPU inference.
+# For CUDA 12.1: pip install torch --index-url https://download.pytorch.org/whl/cu121
+# For CPU only:  pip install torch --index-url https://download.pytorch.org/whl/cpu

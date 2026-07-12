@@ -1,63 +1,122 @@
+"""Human parsing using Segformer-B2 trained on ATR clothes dataset.
+
+Replaces the broken mattmdjaga/human_parsing model with
+mattmdjaga/segformer_b2_clothes (validated working on 2025-07-12).
+
+Label map (ATR format):
+  0=background, 1=hat, 2=hair, 3=face, 4=upper-clothes,
+  5=skirt, 6=pants, 7=arm, 8=leg, 9=shoe, 10=skin
+
+The agnostic mask (where to inpaint the new garment) is white where
+labels are 4 (upper-clothes), 5 (skirt), or 6 (pants).
+"""
+
 from __future__ import annotations
+
 import logging
-from typing import Any
+from typing import Optional
+
 import numpy as np
 from PIL import Image
 
 logger = logging.getLogger(__name__)
 
-INPAINT_LABELS = {1, 3, 5, 6, 7, 8, 9, 10, 11, 12}
+# ATR label constants
+LABEL_BACKGROUND = 0
+LABEL_HAT = 1
+LABEL_HAIR = 2
+LABEL_FACE = 3
+LABEL_UPPER_CLOTHES = 4
+LABEL_SKIRT = 5
+LABEL_PANTS = 6
+LABEL_ARM = 7
+LABEL_LEG = 8
+LABEL_SHOE = 9
+LABEL_SKIN = 10
+
+# Garment labels — these are the regions we want to inpaint
+GARMENT_LABELS = {LABEL_UPPER_CLOTHES, LABEL_SKIRT, LABEL_PANTS}
+
+# Color palette for visualization (RGB)
+LABEL_PALETTE = [
+    (0, 0, 0),          # 0 background
+    (255, 0, 0),        # 1 hat
+    (255, 85, 0),       # 2 hair
+    (255, 170, 0),      # 3 face
+    (255, 0, 85),       # 4 upper-clothes
+    (255, 0, 170),      # 5 skirt
+    (0, 255, 0),        # 6 pants
+    (170, 255, 85),     # 7 arm
+    (85, 255, 170),     # 8 leg
+    (0, 85, 255),       # 9 shoe
+    (0, 170, 255),      # 10 skin
+]
+
 
 class HumanParsingPreprocessor:
-    def __init__(self, model_path: str | None = None):
-        self._model_path = model_path
-        self._model: Any = None
-        self._loaded = False
+    """Human parsing using Segformer-B2 (mattmdjaga/segformer_b2_clothes).
 
-    @property
-    def is_ready(self) -> bool:
-        return self._loaded
+    Loads lazily on first use so the gateway can boot without ML deps.
+    """
 
-    def load(self) -> None:
-        try:
-            import torch
-            from torchvision import transforms
-            from transformers import SegformerForSemanticSegmentation
-            self._model = SegformerForSemanticSegmentation.from_pretrained("mattmdjaga/human_parsing")
-            self._torch = torch
-            self._transforms = transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-            ])
-            self._loaded = True
-            logger.info("Human parsing preprocessor loaded")
-        except Exception as e:
-            logger.warning(f"Failed to load human parsing model: {e}")
-            self._loaded = False
+    MODEL_ID = "mattmdjaga/segformer_b2_clothes"
 
-    def process(self, person_image: Image.Image, width: int, height: int) -> np.ndarray:
-        if not self._loaded:
-            self.load()
-        if self._model is None:
-            return np.ones((height, width), dtype=np.uint8) * 5
-        try:
-            torch = self._torch
-            img = person_image.convert("RGB").resize((width, height), Image.LANCZOS)
-            input_tensor = self._transforms(img).unsqueeze(0)
-            device = next(self._model.parameters()).device
-            input_tensor = input_tensor.to(device)
-            with torch.no_grad():
-                outputs = self._model(input_tensor)
-                logits = outputs.logits
-                logits = torch.nn.functional.interpolate(logits, size=(height, width), mode="bilinear", align_corners=False)
-                parsing = logits.argmax(dim=1).squeeze(0).cpu().numpy()
-            return parsing.astype(np.uint8)
-        except Exception as e:
-            logger.warning(f"Human parsing inference failed: {e}")
-            return np.ones((height, width), dtype=np.uint8) * 5
+    def __init__(self, device: str = "cuda"):
+        self._device = device
+        self._processor = None
+        self._model = None
 
-    def generate_agnostic_mask(self, parsing: np.ndarray) -> Image.Image:
-        mask = np.zeros_like(parsing, dtype=np.uint8)
-        for label in INPAINT_LABELS:
-            mask[parsing == label] = 255
-        return Image.fromarray(mask, mode="L")
+    def _load(self):
+        if self._model is not None:
+            return
+        import torch
+        from transformers import SegformerForSemanticSegmentation, SegformerImageProcessor
+
+        logger.info(f"Loading human parsing model: {self.MODEL_ID}")
+        self._processor = SegformerImageProcessor.from_pretrained(self.MODEL_ID)
+        self._model = SegformerForSemanticSegmentation.from_pretrained(self.MODEL_ID)
+        self._model.to(self._device).eval()
+        logger.info("Human parsing model loaded")
+
+    def parse(self, image: Image.Image) -> np.ndarray:
+        """Run human parsing on an image.
+
+        Args:
+            image: PIL RGB image.
+
+        Returns:
+            2D numpy array of label IDs (0-10), same H/W as input image.
+        """
+        self._load()
+        import torch
+
+        img = image.convert("RGB")
+        inputs = self._processor(images=img, return_tensors="pt").to(self._device)
+        with torch.no_grad():
+            outputs = self._model(**inputs)
+        logits = outputs.logits[0]  # (num_labels, H, W)
+        parsed = logits.argmax(0).cpu().numpy().astype(np.uint8)
+        # Resize back to original image size
+        parsed_img = Image.fromarray(parsed).resize(img.size, Image.NEAREST)
+        return np.array(parsed_img)
+
+    def generate_agnostic_mask(self, image: Image.Image) -> Image.Image:
+        """Generate the clothing-agnostic mask.
+
+        White (255) where the garment goes (labels 4, 5, 6).
+        Black (0) everywhere else (face, arms, legs, background).
+
+        This tells the diffusion model which regions to inpaint.
+        """
+        parsed = self.parse(image)
+        mask = np.zeros_like(parsed, dtype=np.uint8)
+        for label in GARMENT_LABELS:
+            mask[parsed == label] = 255
+        return Image.fromarray(mask)
+
+    def visualize(self, parsed: np.ndarray) -> Image.Image:
+        """Convert a parsing map to a color-coded image for debugging."""
+        color = np.zeros((*parsed.shape, 3), dtype=np.uint8)
+        for label_id, rgb in enumerate(LABEL_PALETTE):
+            color[parsed == label_id] = rgb
+        return Image.fromarray(color)

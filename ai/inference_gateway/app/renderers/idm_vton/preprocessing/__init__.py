@@ -1,5 +1,6 @@
-from app.renderers.idm_vton.preprocessing.openpose import OpenPosePreprocessor, DensePosePreprocessor
-from app.renderers.idm_vton.preprocessing.parsing import HumanParsingPreprocessor
-from app.renderers.idm_vton.preprocessing.garment import GarmentPreprocessor
+"""IDM-VTON preprocessing: human parsing, pose estimation, background removal."""
 
-__all__ = ["OpenPosePreprocessor", "DensePosePreprocessor", "HumanParsingPreprocessor", "GarmentPreprocessor"]
+from app.renderers.idm_vton.preprocessing.parsing import HumanParsingPreprocessor
+from app.renderers.idm_vton.preprocessing.pose import PoseEstimator
+
+__all__ = ["HumanParsingPreprocessor", "PoseEstimator"]
