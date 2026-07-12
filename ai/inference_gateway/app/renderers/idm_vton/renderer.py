@@ -75,10 +75,10 @@ class IDMVTONRenderer(Renderer):
 
         self._model = IDMVTONModel(self._config, self._device_type, use_lcm=use_lcm)
 
-        # Preprocessing models (lazy-loaded on first use)
-        device_str = self._device_type.value if self._device_type != DeviceType.CPU else "cpu"
-        self._parsing = HumanParsingPreprocessor(device=device_str)
-        self._pose = PoseEstimator(device=device_str)
+        # Preprocessing models on CPU to avoid GPU OOM
+        # (IDM-VTON uses ~12GB VRAM, preprocessing needs ~700MB more)
+        self._parsing = HumanParsingPreprocessor(device="cpu")
+        self._pose = PoseEstimator(device="cpu")
         self._clip_processor = CLIPImageProcessor()
 
     # ============================================================
@@ -218,12 +218,9 @@ class IDMVTONRenderer(Renderer):
     def _render_internal(self, request: RenderRequest, is_warmup: bool = False) -> Image.Image:
         """Run the actual IDM-VTON inference.
 
-        Steps:
-        1. Resize inputs to model dimensions
-        2. Generate agnostic mask (where to inpaint) using Segformer-B2
-        3. Generate pose map using OpenPose
-        4. Run TryonPipeline
-        5. Return result image
+        Uses the src/tryon_pipeline.py API (original IDM-VTON):
+          pipe(prompt_embeds=..., cloth=..., pose_img=..., mask_image=...,
+               image=..., ip_adapter_image=...)
         """
         torch = self._model._torch
         pipe = self._model.pipe
@@ -231,62 +228,118 @@ class IDMVTONRenderer(Renderer):
         if torch is None or pipe is None:
             raise ModelNotLoadedError("Model not loaded")
 
+        device = self._device_type.value
+        dtype = self._model._dtype
+        W = self._config.image_width
+        H = self._config.image_height
+
         # 1. Resize inputs
-        person = request.person_image.convert("RGB").resize(
-            (self._config.image_width, self._config.image_height), Image.LANCZOS
-        )
-        garment = request.garment_image.convert("RGB").resize(
-            (self._config.image_width, self._config.image_height), Image.LANCZOS
-        )
+        person = request.person_image.convert("RGB").resize((W, H), Image.LANCZOS)
+        garment = request.garment_image.convert("RGB").resize((W, H), Image.LANCZOS)
 
         # 2. Generate agnostic mask (white where garment goes, black elsewhere)
         if is_warmup:
-            mask = Image.new("L", (self._config.image_width, self._config.image_height), 255)
+            mask = Image.new("L", (W, H), 255)
         else:
             mask = self._generate_agnostic_mask(person)
 
-        # 3. Generate pose map (OpenPose skeleton — tells model where body joints are)
+        # 3. Generate pose map (OpenPose skeleton)
         if is_warmup:
-            pose = Image.new("RGB", (self._config.image_width, self._config.image_height), (128, 128, 128))
+            pose = Image.new("RGB", (W, H), (128, 128, 128))
         else:
             pose = self._generate_pose(person)
+            # OpenPose returns 512x768 — resize to match person image
+            pose = pose.resize((W, H), Image.LANCZOS)
 
-        # 4. Set up generator for reproducibility
+        # 4. Convert PIL -> tensors (all in model dtype, [-1, 1] range)
+        person_tensor = torch.from_numpy(
+            (np.array(person).astype(np.float32) / 127.5) - 1.0
+        ).permute(2, 0, 1).unsqueeze(0).to(dtype)
+
+        garment_tensor = torch.from_numpy(
+            (np.array(garment).astype(np.float32) / 127.5) - 1.0
+        ).permute(2, 0, 1).unsqueeze(0).to(dtype)
+
+        mask_tensor = torch.from_numpy(
+            np.array(mask).astype(np.float32) / 255.0
+        ).unsqueeze(0).unsqueeze(0).to(dtype)
+
+        pose_tensor = torch.from_numpy(
+            (np.array(pose).astype(np.float32) / 127.5) - 1.0
+        ).permute(2, 0, 1).unsqueeze(0).to(dtype)
+
+        # CLIP garment embedding (for IP-Adapter)
+        clip_image = self._clip_processor(
+            images=garment, return_tensors="pt"
+        ).pixel_values.to(dtype)
+
+        # 5. Encode prompts
+        prompt = "model is wearing a garment"
+        negative_prompt = "monochrome, lowres, bad anatomy, worst quality, low quality"
+        prompt_cloth = "a photo of garment"
+
+        with torch.inference_mode():
+            prompt_embeds, neg_prompt_embeds, pooled_embeds, neg_pooled_embeds = pipe.encode_prompt(
+                [prompt],
+                num_images_per_prompt=1,
+                do_classifier_free_guidance=True,
+                negative_prompt=[negative_prompt],
+            )
+            prompt_embeds_c, _, _, _ = pipe.encode_prompt(
+                [prompt_cloth],
+                num_images_per_prompt=1,
+                do_classifier_free_guidance=False,
+                negative_prompt=[negative_prompt],
+            )
+
+        # 6. Set up generator
         generator = None
         if request.seed is not None:
-            generator = torch.Generator(device=self._device_type.value).manual_seed(request.seed)
+            generator = torch.Generator(device=device).manual_seed(request.seed)
 
-        # 5. Run inference
-        result = pipe(
-            image=person,
-            condition_image=garment,
-            mask=mask,
-            densepose=pose,  # OpenPose skeleton (named densepose for pipeline compat)
-            pose=pose,
-            num_inference_steps=self._config.num_inference_steps,
-            guidance_scale=self._config.guidance_scale,
-            generator=generator,
-            height=self._config.image_height,
-            width=self._config.image_width,
-        )
+        # 7. Run inference
+        with torch.inference_mode():
+            images = pipe(
+                prompt_embeds=prompt_embeds,
+                negative_prompt_embeds=neg_prompt_embeds,
+                pooled_prompt_embeds=pooled_embeds,
+                negative_pooled_prompt_embeds=neg_pooled_embeds,
+                num_inference_steps=self._config.num_inference_steps,
+                generator=generator,
+                strength=1.0,
+                pose_img=pose_tensor.to(device),
+                text_embeds_cloth=prompt_embeds_c,
+                cloth=garment_tensor.to(device),
+                mask_image=mask_tensor.to(device),
+                image=person_tensor.to(device),
+                height=H,
+                width=W,
+                guidance_scale=self._config.guidance_scale,
+                ip_adapter_image=clip_image.to(device),
+            )
 
-        # 6. Extract result image
-        if hasattr(result, "images"):
-            output = result.images[0]
-        elif isinstance(result, (list, tuple)):
-            output = result[0]
+        # 8. Extract PIL image from pipeline output
+        # Pipeline returns ([PIL.Image, ...],) tuple
+        if isinstance(images, tuple) and len(images) > 0:
+            images = images[0]
+        if isinstance(images, list) and len(images) > 0:
+            output = images[0]
         else:
-            output = result
+            output = images[0] if hasattr(images, "__getitem__") else images
 
-        return output.convert("RGB")
+        if hasattr(output, "convert"):
+            return output.convert("RGB")
+        elif hasattr(output, "permute"):
+            result_array = (output.permute(1, 2, 0).cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
+            return Image.fromarray(result_array)
+        else:
+            return Image.fromarray(output)
 
     def _generate_agnostic_mask(self, person: Image.Image) -> Image.Image:
         """Generate clothing-agnostic mask using Segformer-B2.
 
         White (255) where the garment goes (upper-clothes, skirt, pants).
         Black (0) everywhere else (face, arms, legs, background).
-
-        Replaces the broken full-white mask that inpainted everything.
         """
         return self._parsing.generate_agnostic_mask(person)
 
@@ -295,8 +348,6 @@ class IDMVTONRenderer(Renderer):
 
         The pose skeleton tells the diffusion model where shoulders, elbows,
         hips, and ankles are — so the garment aligns to the body correctly.
-
-        Replaces the gray placeholder that gave the model zero pose info.
         """
         return self._pose.estimate(person)
 

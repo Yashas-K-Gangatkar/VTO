@@ -2,6 +2,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+import app.renderers.idm_vton.compat  # noqa: F401 — must run before src imports
 from typing import Any
 from app.core.device import DeviceType
 from app.renderers.idm_vton.config import IDMVTONConfig
@@ -112,7 +113,8 @@ class IDMVTONModel:
             image_encoder=image_encoder,
             unet_encoder=unet_encoder,
             torch_dtype=self._dtype,
-        ).to(device_str)
+        )
+        self._pipe.enable_sequential_cpu_offload()
 
         if self._use_lcm:
             logger.info("Loading LCM-LoRA weights...")
