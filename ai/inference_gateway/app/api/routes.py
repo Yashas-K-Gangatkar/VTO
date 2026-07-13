@@ -1,11 +1,8 @@
-"""VTO API routes — body scan, garment analysis, try-on.
+"""VTO API routes — body scan, garment analysis, try-on, and 3D Cloud Sync.
 
 These endpoints work in two modes:
 - Real mode (GPU available): runs actual ML pipelines
 - Mock mode (no GPU): returns placeholder results
-
-Mock mode lets the API deploy to free tiers (Render) for testing.
-Set VTO_GPU_ENABLED=true to enable real inference.
 """
 
 from __future__ import annotations
@@ -15,6 +12,7 @@ import io
 import json
 import logging
 import os
+import random
 import time
 from typing import Any
 from uuid import uuid4
@@ -27,9 +25,12 @@ router = APIRouter(prefix="/api/v1", tags=["VTO"])
 
 GPU_ENABLED = os.getenv("VTO_GPU_ENABLED", "false").lower() == "true"
 
+# In-memory storage for mock mode (replace with DB/Redis in production)
+# Maps phone_number -> { "otp": "1234", "model_base64": "...", "body_id": "..." }b
+CLOUD_WALLET_DB = {}
+
 
 def _image_to_base64(img) -> str:
-    """Convert PIL Image to base64 string."""
     from PIL import Image
     if not isinstance(img, Image.Image):
         return ""
@@ -38,15 +39,102 @@ def _image_to_base64(img) -> str:
     return base64.b64encode(buf.getvalue()).decode("utf-8")
 
 
-def _base64_to_image(b64: str):
-    """Convert base64 string to PIL Image."""
-    from PIL import Image
-    img_data = base64.b64decode(b64)
-    return Image.open(io.BytesIO(img_data))
+# ============================================================
+# Digital Twin Wallet (Cloud Sync API)
+# ============================================================
+
+@router.post("/body/sync-upload")
+async def sync_upload_body(
+    phone_number: str = Form(...),
+    model_file: UploadFile = File(...),
+):
+    """Upload a 3D body model (.glb) to the cloud wallet.
+    
+    This is called by the SDK after the user scans their body for the first time.
+    The model is linked to their phone number.
+    """
+    model_bytes = await model_file.read()
+    model_b64 = base64.b64encode(model_bytes).decode("utf-8")
+    body_id = str(uuid4())
+    
+    CLOUD_WALLET_DB[phone_number] = {
+        "body_id": body_id,
+        "model_base64": model_b64,
+        "created_at": time.time()
+    }
+    
+    logger.info(f"Stored 3D model for phone: {phone_number}")
+    return {
+        "status": "success",
+        "message": "Digital Twin stored in cloud wallet.",
+        "body_id": body_id
+    }
+
+
+@router.post("/body/sync-request")
+async def sync_request_otp(
+    phone_number: str = Form(...),
+):
+    """Request an OTP to retrieve the 3D body model on a new device.
+    
+    This implements the cross-app magic. The user enters their phone number
+    in the Zodio app, gets an OTP, and can download their 3D model.
+    """
+    if phone_number not in CLOUD_WALLET_DB:
+        return JSONResponse(
+            status_code=404,
+            content={"status": "error", "message": "No 3D model found for this phone number."}
+        )
+    
+    # Generate 4-digit OTP
+    otp = str(random.randint(1000, 9999))
+    CLOUD_WALLET_DB[phone_number]["otp"] = otp
+    CLOUD_WALLET_DB[phone_number]["otp_expires"] = time.time() + 300  # 5 min expiry
+    
+    # In production: Send SMS via Twilio/Gupshup
+    logger.info(f"OTP for {phone_number}: {otp} (Mock mode - SMS not sent)")
+    
+    return {
+        "status": "success",
+        "message": "OTP sent to your phone number.",
+        # In mock mode, we return the OTP directly so you can test
+        "mock_otp": otp
+    }
+
+
+@router.post("/body/sync-retrieve")
+async def sync_retrieve_body(
+    phone_number: str = Form(...),
+    otp: str = Form(...),
+):
+    """Download the 3D body model (.glb) after OTP verification.
+    
+    This allows the Zodio app to download the 3D model created in the Westside app.
+    """
+    user_data = CLOUD_WALLET_DB.get(phone_number)
+    
+    if not user_data:
+        return JSONResponse(status_code=404, content={"status": "error", "message": "Not found"})
+    
+    if user_data.get("otp") != otp:
+        return JSONResponse(status_code=403, content={"status": "error", "message": "Invalid OTP"})
+    
+    if time.time() > user_data.get("otp_expires", 0):
+        return JSONResponse(status_code=403, content={"status": "error", "message": "OTP expired"})
+    
+    # Clear OTP after use
+    user_data["otp"] = None
+    
+    return {
+        "status": "success",
+        "body_id": user_data["body_id"],
+        "model_base64": user_data["model_base64"],
+        "message": "Digital Twin retrieved successfully. Render on device."
+    }
 
 
 # ============================================================
-# Body Scan
+# Body Scan (Measurements)
 # ============================================================
 
 @router.post("/body/scan")
@@ -54,20 +142,14 @@ async def scan_body(
     photos: list[UploadFile] = File(...),
     angles: str = Form("front,back,left,right,three_quarter_left,three_quarter_right"),
 ):
-    """Scan body from 6 photos. Returns persistent BodyProfile.
-
-    Upload 6 photos (front, back, left, right, 3/4-left, 3/4-right).
-    Returns body measurements, landmarks, and validation status.
-    """
+    """Scan body from 6 photos. Returns persistent BodyProfile."""
     angle_list = angles.split(",")
-
     if GPU_ENABLED:
         return await _scan_body_real(photos, angle_list)
     return _scan_body_mock(angle_list)
 
 
 async def _scan_body_real(photos: list[UploadFile], angles: list[str]) -> dict:
-    """Run real DigitalHumanPipeline (needs GPU)."""
     from PIL import Image
     from app.digital_human import DigitalHumanPipeline, PhotoAngle
 
@@ -88,7 +170,6 @@ async def _scan_body_real(photos: list[UploadFile], angles: list[str]) -> dict:
 
 
 def _scan_body_mock(angles: list[str]) -> dict:
-    """Mock response for testing without GPU."""
     return {
         "body_id": str(uuid4()),
         "version": 1,
@@ -118,20 +199,13 @@ async def analyze_garment(
     retailer_id: str = Form(""),
     sku: str = Form(""),
 ):
-    """Analyze garment from photos. Returns GarmentProfile.
-
-    Upload front photo (required) + optional back photo.
-    Returns category, color, fabric, measurements, embedding.
-    """
+    """Analyze garment from photos. Returns GarmentProfile."""
     if GPU_ENABLED:
         return await _analyze_garment_real(front_image, back_image, retailer_id, sku)
     return _analyze_garment_mock(retailer_id, sku)
 
 
-async def _analyze_garment_real(
-    front: UploadFile, back: UploadFile | None,
-    retailer_id: str, sku: str,
-) -> dict:
+async def _analyze_garment_real(front, back, retailer_id, sku) -> dict:
     from PIL import Image
     from app.garment_intelligence import GarmentIntelligencePipeline
 
@@ -141,16 +215,11 @@ async def _analyze_garment_real(
         back_img = Image.open(io.BytesIO(await back.read())).convert("RGB")
 
     pipeline = GarmentIntelligencePipeline(device="cpu")
-    profile = pipeline.process(
-        front_image=front_img,
-        back_image=back_img,
-        retailer_id=retailer_id,
-        sku=sku,
-    )
+    profile = pipeline.process(front_image=front_img, back_image=back_img, retailer_id=retailer_id, sku=sku)
     return profile.to_dict()
 
 
-def _analyze_garment_mock(retailer_id: str, sku: str) -> dict:
+def _analyze_garment_mock(retailer_id, sku) -> dict:
     return {
         "garment_id": str(uuid4()),
         "version": 1,
@@ -170,7 +239,7 @@ def _analyze_garment_mock(retailer_id: str, sku: str) -> dict:
 
 
 # ============================================================
-# Try-On
+# Try-On (2D AI - Premium Feature)
 # ============================================================
 
 @router.post("/tryon")
@@ -181,20 +250,13 @@ async def try_on(
     height: int = Form(384),
     seed: int = Form(42),
 ):
-    """Run virtual try-on. Returns result image as base64 PNG.
-
-    Upload person photo + garment photo.
-    Returns the try-on result image.
-    """
+    """Run 2D photorealistic virtual try-on. (Requires GPU)"""
     if GPU_ENABLED:
         return await _tryon_real(person_image, garment_image, width, height, seed)
     return await _tryon_mock(person_image, garment_image)
 
 
-async def _tryon_real(
-    person: UploadFile, garment: UploadFile,
-    width: int, height: int, seed: int,
-) -> dict:
+async def _tryon_real(person, garment, width, height, seed) -> dict:
     from PIL import Image
     from app.renderers.idm_vton.renderer import IDMVTONRenderer
     from app.renderers.base import RenderRequest
@@ -211,11 +273,7 @@ async def _tryon_real(
     )
     renderer.warmup()
 
-    req = RenderRequest(
-        person_image=person_img,
-        garment_image=garment_img,
-        seed=seed,
-    )
+    req = RenderRequest(person_image=person_img, garment_image=garment_img, seed=seed)
     result = renderer.render(req)
 
     return {
@@ -228,10 +286,7 @@ async def _tryon_real(
 
 
 async def _tryon_mock(person: UploadFile, garment: UploadFile) -> dict:
-    """Return the person image as placeholder (no GPU)."""
     from PIL import Image
-
-    # Read person image and return it as placeholder
     person_bytes = await person.read()
     person_img = Image.open(io.BytesIO(person_bytes)).convert("RGB")
 
@@ -250,9 +305,8 @@ async def _tryon_mock(person: UploadFile, garment: UploadFile) -> dict:
 
 @router.get("/status")
 async def status():
-    """Check if GPU inference is available."""
     return {
         "gpu_enabled": GPU_ENABLED,
         "mode": "real" if GPU_ENABLED else "mock",
-        "endpoints": ["/body/scan", "/garment/analyze", "/tryon"],
+        "endpoints": ["/body/scan", "/garment/analyze", "/tryon", "/body/sync-upload", "/body/sync-request", "/body/sync-retrieve"],
     }

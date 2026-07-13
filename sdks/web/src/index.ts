@@ -1,55 +1,10 @@
 /**
- * VTO SDK — Virtual Try-On client for web retailers.
- *
- * Usage:
- *   import { VTOClient } from '@vto/sdk';
- *   const client = new VTOClient({ apiKey: 'your-key', baseUrl: 'https://your-api.com' });
- *   const profile = await client.scanBody(photos);
- *   const garment = await client.analyzeGarment(frontPhoto);
- *   const result = await client.tryOn(personPhoto, garmentPhoto);
+ * VTO SDK — Virtual Try-On client for web retailers + Cloud Sync.
  */
 
 export interface VTOConfig {
   apiKey: string;
   baseUrl: string;
-}
-
-export interface BodyProfile {
-  body_id: string;
-  version: number;
-  body_measurements: Record<string, {
-    value: number;
-    unit: string;
-    confidence: number;
-    source_photos: string[];
-    method: string;
-  }>;
-  validation_status: 'approved' | 'rejected' | 'pending';
-  validation_errors: string[];
-  mode?: string;
-}
-
-export interface GarmentProfile {
-  garment_id: string;
-  version: number;
-  retailer_id: string;
-  sku: string;
-  category: string;
-  subcategory: string;
-  color: { primary: string; secondary: string | null; name: string };
-  pattern: string;
-  sleeve_length: string;
-  collar_type: string;
-  fabric: { type: string; confidence: number };
-  measurements: Record<string, number | null>;
-  mode?: string;
-}
-
-export interface TryOnResult {
-  image: string;  // base64 PNG
-  render_time_ms: number;
-  quality_score: number;
-  mode: string;
 }
 
 export class VTOClient {
@@ -60,60 +15,66 @@ export class VTOClient {
   }
 
   /**
-   * Scan body from 6 photos.
-   * Returns persistent BodyProfile with measurements.
+   * Upload 3D body model to Cloud Wallet (Digital Twin).
    */
-  async scanBody(photos: { image: Blob; angle: string }[]): Promise<BodyProfile> {
+  async syncUploadBody(phoneNumber: string, modelBlob: Blob): Promise<{ status: string; body_id: string }> {
     const formData = new FormData();
-    const angles = photos.map(p => p.angle).join(',');
-    formData.append('angles', angles);
-    photos.forEach(p => formData.append('photos', p.image, `${p.angle}.jpg`));
+    formData.append('phone_number', phoneNumber);
+    formData.append('model_file', modelBlob, 'body.glb');
 
-    const res = await fetch(`${this.config.baseUrl}/api/v1/body/scan`, {
+    const res = await fetch(`${this.config.baseUrl}/api/v1/body/sync-upload`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${this.config.apiKey}` },
       body: formData,
     });
 
-    if (!res.ok) throw new Error(`scanBody failed: ${res.status}`);
+    if (!res.ok) throw new Error(`syncUploadBody failed: ${res.status}`);
     return res.json();
   }
 
   /**
-   * Analyze garment from photos.
-   * Returns GarmentProfile with category, color, fabric, etc.
+   * Request OTP to retrieve 3D body model on a new device.
    */
-  async analyzeGarment(
-    frontImage: Blob,
-    backImage?: Blob,
-    retailerId?: string,
-    sku?: string,
-  ): Promise<GarmentProfile> {
+  async syncRequestOtp(phoneNumber: string): Promise<{ status: string; mock_otp?: string }> {
     const formData = new FormData();
-    formData.append('front_image', frontImage, 'front.jpg');
-    if (backImage) formData.append('back_image', backImage, 'back.jpg');
-    if (retailerId) formData.append('retailer_id', retailerId);
-    if (sku) formData.append('sku', sku);
+    formData.append('phone_number', phoneNumber);
 
-    const res = await fetch(`${this.config.baseUrl}/api/v1/garment/analyze`, {
+    const res = await fetch(`${this.config.baseUrl}/api/v1/body/sync-request`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${this.config.apiKey}` },
       body: formData,
     });
 
-    if (!res.ok) throw new Error(`analyzeGarment failed: ${res.status}`);
+    if (!res.ok) throw new Error(`syncRequestOtp failed: ${res.status}`);
     return res.json();
   }
 
   /**
-   * Run virtual try-on.
-   * Returns result image as base64 PNG.
+   * Retrieve 3D body model from Cloud Wallet using OTP.
+   */
+  async syncRetrieveBody(phoneNumber: string, otp: string): Promise<{ status: string; model_base64: string }> {
+    const formData = new FormData();
+    formData.append('phone_number', phoneNumber);
+    formData.append('otp', otp);
+
+    const res = await fetch(`${this.config.baseUrl}/api/v1/body/sync-retrieve`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${this.config.apiKey}` },
+      body: formData,
+    });
+
+    if (!res.ok) throw new Error(`syncRetrieveBody failed: ${res.status}`);
+    return res.json();
+  }
+
+  /**
+   * Run 2D photorealistic try-on (Premium feature).
    */
   async tryOn(
     personImage: Blob,
     garmentImage: Blob,
     options?: { width?: number; height?: number; seed?: number },
-  ): Promise<TryOnResult> {
+  ): Promise<{ image: string; render_time_ms: number; mode: string }> {
     const formData = new FormData();
     formData.append('person_image', personImage, 'person.jpg');
     formData.append('garment_image', garmentImage, 'garment.jpg');
@@ -132,7 +93,7 @@ export class VTOClient {
   }
 
   /**
-   * Check API status (GPU enabled or mock mode).
+   * Check API status.
    */
   async getStatus(): Promise<{ gpu_enabled: boolean; mode: string }> {
     const res = await fetch(`${this.config.baseUrl}/api/v1/status`);
