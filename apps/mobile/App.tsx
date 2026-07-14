@@ -8,7 +8,7 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, View } from 'react-native';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 
 // Lazy load TryOnScreen to prevent expo-gl crash on startup

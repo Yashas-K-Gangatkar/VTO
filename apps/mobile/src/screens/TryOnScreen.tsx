@@ -12,7 +12,7 @@ import { CameraView } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import ThreeDViewer from '../components/ThreeDViewer';
 import { syncRequestOtp, syncRetrieveBody } from '../api/cloudSync';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 interface TryOnScreenProps {
   bodyModelUri: string | null;
