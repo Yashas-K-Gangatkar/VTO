@@ -21,8 +21,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-camera",
-      "expo-barcode-scanner"
+      "expo-camera"
     ],
     "extra": {
       "eas": {
