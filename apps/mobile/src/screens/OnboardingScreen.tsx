@@ -8,7 +8,7 @@ import {
   Alert, ActivityIndicator, Image
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as Camera from 'expo-camera';
+import { CameraView } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { syncUploadBody } from '../api/cloudSync';
@@ -32,12 +32,13 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const [photos, setPhotos] = useState<string[]>([]);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [uploading, setUploading] = useState(false);
-  const cameraRef = useRef<Camera.CameraView>(null);
+  const cameraRef = useRef<CameraView>(null);
 
   const startScanning = async () => {
     try {
       console.log('Start scanning clicked');
-      const { status } = await Camera.requestCameraPermissionsAsync();
+      // Use ImagePicker to request camera permissions (more reliable in SDK 54)
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
       console.log('Camera permission status:', status);
       if (status !== 'granted') {
         Alert.alert('Permission needed', 'Camera access is required');
@@ -116,7 +117,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
           <Text style={styles.captureInstruction}>{angle.instruction}</Text>
         </View>
         <View style={styles.cameraContainer}>
-          <Camera.CameraView ref={cameraRef} style={styles.camera} facing={'back'} ratio="3:4" />
+          <CameraView ref={cameraRef} style={styles.camera} facing={'back'} ratio="3:4" />
           {photos.length > 0 && (
             <View style={styles.photoThumbnails}>
               {photos.map((uri, i) => (<Image key={i} source={{ uri }} style={styles.thumbnail} />))}
