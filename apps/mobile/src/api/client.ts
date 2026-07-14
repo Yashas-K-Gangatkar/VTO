@@ -3,7 +3,7 @@
  * Change API_URL to your deployed API URL.
  */
 
-const API_URL = 'http://10.0.2.2:8000'; // Android emulator localhost
+const API_URL = 'http://Yashass-MacBook-Pro.local:8000'; // Mac local network
 // const API_URL = 'http://localhost:8000'; // iOS simulator
 // const API_URL = 'https://your-api.onrender.com'; // Production
 

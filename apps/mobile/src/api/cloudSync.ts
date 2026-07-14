@@ -2,7 +2,7 @@
  * Cloud Sync API Client
  */
 
-const API_URL = 'http://localhost:8000';
+const API_URL = 'http://Yashass-MacBook-Pro.local:8000';
 
 export interface SyncUploadResult {
   status: string;
