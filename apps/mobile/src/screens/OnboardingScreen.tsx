@@ -8,7 +8,7 @@ import {
   Alert, ActivityIndicator, Image
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Camera, CameraType } from 'expo-camera';
+import { Camera } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { syncUploadBody } from '../api/cloudSync';
@@ -108,7 +108,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
           <Text style={styles.captureInstruction}>{angle.instruction}</Text>
         </View>
         <View style={styles.cameraContainer}>
-          <Camera ref={cameraRef} style={styles.camera} type={CameraType.back} ratio="3:4" />
+          <Camera ref={cameraRef} style={styles.camera} type={'back'} ratio="3:4" />
           {photos.length > 0 && (
             <View style={styles.photoThumbnails}>
               {photos.map((uri, i) => (<Image key={i} source={{ uri }} style={styles.thumbnail} />))}
