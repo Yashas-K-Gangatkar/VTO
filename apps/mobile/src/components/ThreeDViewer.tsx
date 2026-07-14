@@ -65,7 +65,7 @@ export default function ThreeDViewer({
         return new Promise((resolve, reject) => {
           if (url.startsWith('file://') || url.startsWith('content://')) {
             FileSystem.readAsStringAsync(url, {
-              encoding: FileSystem.EncodingType.Base64,
+              encoding: 'base64',
             }).then((b64) => {
               const buf = base64ToArrayBuffer(b64);
               loader.parse(buf, '', resolve, reject);

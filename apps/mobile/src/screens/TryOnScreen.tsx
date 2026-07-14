@@ -53,7 +53,7 @@ export default function TryOnScreen({ bodyModelUri, onReset }: TryOnScreenProps)
     try {
       const result = await syncRetrieveBody(phoneNumber, otp);
       const localPath = `${FileSystem.cacheDirectory}body_model.glb`;
-      await FileSystem.writeAsStringAsync(localPath, result.model_base64, { encoding: FileSystem.EncodingType.Base64 });
+      await FileSystem.writeAsStringAsync(localPath, result.model_base64, { encoding: 'base64' });
       setSyncModalOpen(false);
       Alert.alert('Success!', 'Your Digital Twin has been loaded from the cloud.');
     } catch (e: any) { Alert.alert('Sync failed', e.message); }
