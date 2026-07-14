@@ -35,12 +35,20 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const cameraRef = useRef<Camera.CameraView>(null);
 
   const startScanning = async () => {
-    const { status } = await Camera.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Camera access is required');
-      return;
+    try {
+      console.log('Start scanning clicked');
+      const { status } = await Camera.requestCameraPermissionsAsync();
+      console.log('Camera permission status:', status);
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Camera access is required');
+        return;
+      }
+      console.log('Setting step to capture');
+      setStep('capture');
+    } catch (error) {
+      console.error('Error in startScanning:', error);
+      Alert.alert('Error', 'Failed to start camera: ' + error.message);
     }
-    setStep('capture');
   };
 
   const takePhoto = async () => {
