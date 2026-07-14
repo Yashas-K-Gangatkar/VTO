@@ -8,7 +8,7 @@ import {
   Alert, Modal, TextInput
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BarCodeScanner } from 'expo-barcode-scanner';
+import { Camera } from 'expo-camera';
 import ThreeDViewer from '../components/ThreeDViewer';
 import { syncRequestOtp, syncRetrieveBody } from '../api/cloudSync';
 import * as FileSystem from 'expo-file-system';
@@ -36,7 +36,7 @@ export default function TryOnScreen({ bodyModelUri, onReset }: TryOnScreenProps)
 
   useEffect(() => {
     (async () => {
-      const { status } = await BarCodeScanner.requestPermissionsAsync();
+      const { status } = await Camera.requestCameraPermissionsAsync();
       setHasPermission(status === 'granted');
     })();
   }, []);
@@ -94,7 +94,13 @@ export default function TryOnScreen({ bodyModelUri, onReset }: TryOnScreenProps)
       <Modal visible={scannerOpen} animationType="slide">
         <SafeAreaView style={styles.scannerContainer}>
           <Text style={styles.scannerTitle}>Scan Garment QR Code</Text>
-          {hasPermission ? <BarCodeScanner style={styles.scanner} onBarCodeScanned={scannerOpen ? handleBarCodeScanned : undefined} /> : <Text style={styles.scannerError}>Camera permission required</Text>}
+          {hasPermission ? (
+            <Camera 
+              style={styles.scanner} 
+              onBarCodeScanned={scannerOpen ? handleBarCodeScanned : undefined}
+              ratio="16:9"
+            />
+          ) : <Text style={styles.scannerError}>Camera permission required</Text>}
           <TouchableOpacity style={styles.closeButton} onPress={() => setScannerOpen(false)}><Text style={styles.closeButtonText}>Cancel</Text></TouchableOpacity>
         </SafeAreaView>
       </Modal>
