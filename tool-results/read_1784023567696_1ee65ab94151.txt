@@ -1,0 +1,528 @@
+     1→Last login: Sun Jul 12 20:48:26 on ttys033
+     2→yashas@Yashass-MacBook-Pro inference_gateway % cd ~/VTO
+     3→git add ai/inference_gateway/app/api/routes.py
+     4→git commit -m "fix: resolve async event loop error in mock try-on endpoint
+     5→
+     6→The _tryon_mock function was using run_until_complete inside an async
+     7→route, causing 'RuntimeError: This event loop is already running'.
+     8→Converted to async/await for proper FastAPI compatibility."
+     9→git push origin main
+    10→[main 3a940bf] fix: resolve async event loop error in mock try-on endpoint
+    11→ 1 file changed, 3 insertions(+), 5 deletions(-)
+    12→ mode change 100644 => 100755 ai/inference_gateway/app/api/routes.py
+    13→Enumerating objects: 13, done.
+    14→Counting objects: 100% (13/13), done.
+    15→Delta compression using up to 10 threads
+    16→Compressing objects: 100% (6/6), done.
+    17→Writing objects: 100% (7/7), 767 bytes | 767.00 KiB/s, done.
+    18→Total 7 (delta 4), reused 0 (delta 0), pack-reused 0 (from 0)
+    19→remote: Resolving deltas: 100% (4/4), completed with 4 local objects.
+    20→To https://github.com/Yashas-K-Gangatkar/VTO.git
+    21→   b599667..3a940bf  main -> main
+    22→yashas@Yashass-MacBook-Pro VTO % cd ~/VTO
+    23→
+    24→# Extract the new files
+    25→tar xzf ~/Downloads/vto_react_native_sdk.tar.gz
+    26→
+    27→# Install new 3D dependencies
+    28→cd apps/mobile
+    29→rm -rf node_modules package-lock.json
+    30→npm install
+    31→
+    32→# Start the app
+    33→npx expo start --clear
+    34→zsh: command not found: #
+    35→tar: /Users/yashas/Downloads/vto_react_native_sdk.tar.gz: m: No such file or directory
+    36→zsh: command not found: #
+    37→npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+    38→npm warn deprecated rimraf@3.0.2: Rimraf versions prior to v4 are no longer supported
+    39→npm warn deprecated glob@7.2.3: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+    40→npm warn deprecated glob@7.2.3: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+    41→npm warn deprecated glob@7.2.3: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+    42→npm warn deprecated glob@7.2.3: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+    43→npm warn deprecated glob@7.2.3: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+    44→npm warn deprecated uuid@7.0.3: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+    45→
+    46→added 760 packages, and audited 761 packages in 28s
+    47→
+    48→55 packages are looking for funding
+    49→  run `npm fund` for details
+    50→
+    51→11 moderate severity vulnerabilities
+    52→
+    53→To address issues that do not require attention, run:
+    54→  npm audit fix
+    55→
+    56→To address all issues (including breaking changes), run:
+    57→  npm audit fix --force
+    58→
+    59→Run `npm audit` for details.
+    60→zsh: command not found: #
+    61→Starting project at /Users/yashas/VTO/apps/mobile
+    62→Starting Metro Bundler
+    63→warning: Bundler cache is empty, rebuilding (this may take a minute)
+    64→Recrawled this watch 1 time, most recently because:
+    65→MustScanSubDirs UserDroppedTo resolve, please review the information on
+    66→https://facebook.github.io/watchman/docs/troubleshooting.html#recrawl
+    67→To clear this warning, run:
+    68→`watchman watch-del '/Users/yashas/VTO' ; watchman watch-project '/Users/yashas/VTO'`
+    69→
+    70→The following packages should be updated for best compatibility with the installed expo version:
+    71→  @expo/vector-icons@14.1.0 - expected version: ^15.0.3
+    72→  @types/react@18.2.79 - expected version: ~19.1.10
+    73→  expo-camera@15.0.16 - expected version: ~17.0.10
+    74→  expo-image-picker@15.0.7 - expected version: ~17.0.11
+    75→  expo-status-bar@1.12.1 - expected version: ~3.0.9
+    76→  react@18.3.1 - expected version: 19.1.0
+    77→  react-dom@18.3.1 - expected version: 19.1.0
+    78→  react-native@0.77.0 - expected version: 0.81.5
+    79→  react-native-safe-area-context@4.10.1 - expected version: ~5.6.0
+    80→  react-native-web@0.19.13 - expected version: ^0.21.0
+    81→  typescript@5.3.3 - expected version: ~5.9.2
+    82→Your project may not work correctly until you install the expected versions of the packages.
+    83→▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+    84→█ ▄▄▄▄▄ █ ██▀▀▀▀▄██ ▄▄▄▄▄ █
+    85→█ █   █ █  ▀█ ▀▄█▀█ █   █ █
+    86→█ █▄▄▄█ █▀  █▄▀▀▄██ █▄▄▄█ █
+    87→█▄▄▄▄▄▄▄█▄█ ▀▄█ ▀ █▄▄▄▄▄▄▄█
+    88→█ ▄█▀▄▄▄▀██▄█▄█▄ ▄▀█ ▀▄▄ ▄█
+    89→█▀█▀ ▀▀▄▄▄ ▄█▀▄█ ▀▄█▀   ▀██
+    90→█ ▀▀▄ ▄▄▄▄█▀▄▀█▄▀▄▀▄ ▀▄ ▀██
+    91→███▀█ ▄▄▀▄ ▄ ▄██ ▀ ▄██ ▀███
+    92→█▄▄▄▄█▄▄▄ ▀▀█▄▀▄▀ ▄▄▄ ▀ ▄▄█
+    93→█ ▄▄▄▄▄ █▀▀▀█▀██▀ █▄█ ▀▀▀██
+    94→█ █   █ █▄▄▀▄ █▄█ ▄ ▄▄▀ ▀▀█
+    95→█ █▄▄▄█ █▀▀▀ ▄██▀██▄▀█▀▀ ██
+    96→█▄▄▄▄▄▄▄█▄█▄███▄██▄█▄▄▄▄▄▄█
+    97→
+    98→› Metro waiting on exp://10.187.118.99:8081
+    99→› Scan the QR code above with Expo Go (Android) or the Camera app (iOS)
+   100→
+   101→› Web is waiting on http://localhost:8081
+   102→
+   103→› Using Expo Go
+   104→› Press s │ switch to development build
+   105→
+   106→› Press a │ open Android
+   107→› Press i │ open iOS simulator
+   108→› Press w │ open web
+   109→
+   110→› Press j │ open debugger
+   111→› Press r │ reload app
+   112→› Press m │ toggle menu
+   113→› shift+m │ more tools
+   114→› Press o │ open project code in your editor
+   115→
+   116→› Press ? │ show all commands
+   117→
+   118→Logs for your project will appear below. Press Ctrl+C to exit.
+   119→Web Bundling failed 184ms apps/mobile/node_modules/expo/AppEntry.js (1 module)
+   120→ ERROR  Error: Cannot find module 'babel-preset-expo'
+   121→Require stack:
+   122→- /Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/plugins.js
+   123→- /Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/index.js
+   124→- /Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/index.js
+   125→- /Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/transform-worker/metro-transform-worker.js
+   126→- /Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/transform-worker/transform-worker.js
+   127→- /Users/yashas/VTO/apps/mobile/node_modules/metro/src/DeltaBundler/Worker.flow.js
+   128→- /Users/yashas/VTO/apps/mobile/node_modules/metro/src/DeltaBundler/Worker.js
+   129→- /Users/yashas/VTO/apps/mobile/node_modules/jest-worker/build/workers/processChild.js
+   130→
+   131→Make sure that all the Babel plugins and presets you are using
+   132→are defined as dependencies or devDependencies in your package.json
+   133→file. It's possible that the missing plugin is loaded by a preset
+   134→you are using that forgot to add the plugin to its dependencies: you
+   135→can workaround this problem by explicitly adding the missing package
+   136→to your top-level package.json.
+   137→
+   138→    at Module._resolveFilename (node:internal/modules/cjs/loader:1475:15)
+   139→    at wrapResolveFilename (node:internal/modules/cjs/loader:1048:27)
+   140→    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1093:12)
+   141→    at resolve (node:internal/modules/helpers:209:31)
+   142→    at tryRequireResolve (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/plugins.js:128:11)
+   143→    at resolveStandardizedNameForRequire (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/plugins.js:162:19)
+   144→    at resolveStandardizedName (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/plugins.js:183:12)
+   145→    at loadPreset (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/plugins.js:68:7)
+   146→    at loadPreset.next (<anonymous>)
+   147→    at createDescriptor (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-descriptors.js:140:16)
+   148→    at createDescriptor.next (<anonymous>)
+   149→    at evaluateSync (/Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:251:28)
+   150→    at /Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:31:34
+   151→    at Array.map (<anonymous>)
+   152→    at gensync.sync (/Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:31:22)
+   153→    at gensync.all (/Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:210:24)
+   154→    at Generator.next (<anonymous>)
+   155→    at createDescriptors (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-descriptors.js:102:41)
+   156→    at createDescriptors.next (<anonymous>)
+   157→    at createPresetDescriptors (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-descriptors.js:96:17)
+   158→    at createPresetDescriptors.next (<anonymous>)
+   159→    at /Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/gensync-utils/functional.js:22:27
+   160→    at Generator.next (<anonymous>)
+   161→    at mergeChainOpts (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:350:34)
+   162→    at mergeChainOpts.next (<anonymous>)
+   163→    at chainWalker (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:316:14)
+   164→    at chainWalker.next (<anonymous>)
+   165→    at loadFileChain (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:191:24)
+   166→    at loadFileChain.next (<anonymous>)
+   167→    at mergeExtendsChain (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:328:28)
+   168→    at mergeExtendsChain.next (<anonymous>)
+   169→    at chainWalker (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:312:20)
+   170→    at chainWalker.next (<anonymous>)
+   171→    at buildRootChain (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:56:36)
+   172→    at buildRootChain.next (<anonymous>)
+   173→    at loadPrivatePartialConfig (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/partial.js:72:62)
+   174→    at loadPrivatePartialConfig.next (<anonymous>)
+   175→    at loadFullConfig (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/full.js:36:46)
+   176→    at loadFullConfig.next (<anonymous>)
+   177→    at transform (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/transform.js:20:44)
+   178→    at transform.next (<anonymous>)
+   179→    at evaluateSync (/Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:251:28)
+   180→    at sync (/Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:89:14)
+   181→    at stopHiding - secret - don't use this - v1 (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/errors/rewrite-stack-trace.js:47:12)
+   182→    at Object.transformSync (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/transform.js:40:76)
+   183→    at parseWithBabel (/Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/transformSync.js:75:18)
+   184→    at transformSync (/Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/transformSync.js:64:12)
+   185→    at Object.transform (/Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/babel-transformer.js:127:58)
+   186→    at transformJSWithBabel (/Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/transform-worker/metro-transform-worker.js:468:47)
+   187→Web Bundling failed 9ms apps/mobile/node_modules/expo/AppEntry.js (1 module)
+   188→ ERROR  Error: Cannot find module 'babel-preset-expo'
+   189→Require stack:
+   190→- /Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/plugins.js
+   191→- /Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/index.js
+   192→- /Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/index.js
+   193→- /Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/transform-worker/metro-transform-worker.js
+   194→- /Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/transform-worker/transform-worker.js
+   195→- /Users/yashas/VTO/apps/mobile/node_modules/metro/src/DeltaBundler/Worker.flow.js
+   196→- /Users/yashas/VTO/apps/mobile/node_modules/metro/src/DeltaBundler/Worker.js
+   197→- /Users/yashas/VTO/apps/mobile/node_modules/jest-worker/build/workers/processChild.js
+   198→
+   199→Make sure that all the Babel plugins and presets you are using
+   200→are defined as dependencies or devDependencies in your package.json
+   201→file. It's possible that the missing plugin is loaded by a preset
+   202→you are using that forgot to add the plugin to its dependencies: you
+   203→can workaround this problem by explicitly adding the missing package
+   204→to your top-level package.json.
+   205→
+   206→    at Module._resolveFilename (node:internal/modules/cjs/loader:1475:15)
+   207→    at wrapResolveFilename (node:internal/modules/cjs/loader:1048:27)
+   208→    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1093:12)
+   209→    at resolve (node:internal/modules/helpers:209:31)
+   210→    at tryRequireResolve (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/plugins.js:128:11)
+   211→    at resolveStandardizedNameForRequire (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/plugins.js:162:19)
+   212→    at resolveStandardizedName (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/plugins.js:183:12)
+   213→    at loadPreset (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/plugins.js:68:7)
+   214→    at loadPreset.next (<anonymous>)
+   215→    at createDescriptor (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-descriptors.js:140:16)
+   216→    at createDescriptor.next (<anonymous>)
+   217→    at evaluateSync (/Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:251:28)
+   218→    at /Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:31:34
+   219→    at Array.map (<anonymous>)
+   220→    at gensync.sync (/Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:31:22)
+   221→    at gensync.all (/Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:210:24)
+   222→    at Generator.next (<anonymous>)
+   223→    at createDescriptors (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-descriptors.js:102:41)
+   224→    at createDescriptors.next (<anonymous>)
+   225→    at createPresetDescriptors (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-descriptors.js:96:17)
+   226→    at createPresetDescriptors.next (<anonymous>)
+   227→    at /Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/gensync-utils/functional.js:22:27
+   228→    at Generator.next (<anonymous>)
+   229→    at mergeChainOpts (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:350:34)
+   230→    at mergeChainOpts.next (<anonymous>)
+   231→    at chainWalker (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:316:14)
+   232→    at chainWalker.next (<anonymous>)
+   233→    at loadFileChain (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:191:24)
+   234→    at loadFileChain.next (<anonymous>)
+   235→    at mergeExtendsChain (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:328:28)
+   236→    at mergeExtendsChain.next (<anonymous>)
+   237→    at chainWalker (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:312:20)
+   238→    at chainWalker.next (<anonymous>)
+   239→    at buildRootChain (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:56:36)
+   240→    at buildRootChain.next (<anonymous>)
+   241→    at loadPrivatePartialConfig (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/partial.js:72:62)
+   242→    at loadPrivatePartialConfig.next (<anonymous>)
+   243→    at loadFullConfig (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/full.js:36:46)
+   244→    at loadFullConfig.next (<anonymous>)
+   245→    at transform (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/transform.js:20:44)
+   246→    at transform.next (<anonymous>)
+   247→    at evaluateSync (/Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:251:28)
+   248→    at sync (/Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:89:14)
+   249→    at stopHiding - secret - don't use this - v1 (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/errors/rewrite-stack-trace.js:47:12)
+   250→    at Object.transformSync (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/transform.js:40:76)
+   251→    at parseWithBabel (/Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/transformSync.js:75:18)
+   252→    at transformSync (/Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/transformSync.js:64:12)
+   253→    at Object.transform (/Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/babel-transformer.js:127:58)
+   254→    at transformJSWithBabel (/Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/transform-worker/metro-transform-worker.js:468:47)
+   255→Web Bundling failed 3ms apps/mobile/node_modules/expo/AppEntry.js (1 module)
+   256→ ERROR  Error: Cannot find module 'babel-preset-expo'
+   257→Require stack:
+   258→- /Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/plugins.js
+   259→- /Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/index.js
+   260→- /Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/index.js
+   261→- /Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/transform-worker/metro-transform-worker.js
+   262→- /Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/transform-worker/transform-worker.js
+   263→- /Users/yashas/VTO/apps/mobile/node_modules/metro/src/DeltaBundler/Worker.flow.js
+   264→- /Users/yashas/VTO/apps/mobile/node_modules/metro/src/DeltaBundler/Worker.js
+   265→- /Users/yashas/VTO/apps/mobile/node_modules/jest-worker/build/workers/processChild.js
+   266→
+   267→Make sure that all the Babel plugins and presets you are using
+   268→are defined as dependencies or devDependencies in your package.json
+   269→file. It's possible that the missing plugin is loaded by a preset
+   270→you are using that forgot to add the plugin to its dependencies: you
+   271→can workaround this problem by explicitly adding the missing package
+   272→to your top-level package.json.
+   273→
+   274→    at Module._resolveFilename (node:internal/modules/cjs/loader:1475:15)
+   275→    at wrapResolveFilename (node:internal/modules/cjs/loader:1048:27)
+   276→    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1093:12)
+   277→    at resolve (node:internal/modules/helpers:209:31)
+   278→    at tryRequireResolve (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/plugins.js:128:11)
+   279→    at resolveStandardizedNameForRequire (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/plugins.js:162:19)
+   280→    at resolveStandardizedName (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/plugins.js:183:12)
+   281→    at loadPreset (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/plugins.js:68:7)
+   282→    at loadPreset.next (<anonymous>)
+   283→    at createDescriptor (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-descriptors.js:140:16)
+   284→    at createDescriptor.next (<anonymous>)
+   285→    at evaluateSync (/Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:251:28)
+   286→    at /Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:31:34
+   287→    at Array.map (<anonymous>)
+   288→    at gensync.sync (/Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:31:22)
+   289→    at gensync.all (/Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:210:24)
+   290→    at Generator.next (<anonymous>)
+   291→    at createDescriptors (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-descriptors.js:102:41)
+   292→    at createDescriptors.next (<anonymous>)
+   293→    at createPresetDescriptors (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-descriptors.js:96:17)
+   294→    at createPresetDescriptors.next (<anonymous>)
+   295→    at /Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/gensync-utils/functional.js:22:27
+   296→    at Generator.next (<anonymous>)
+   297→    at mergeChainOpts (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:350:34)
+   298→    at mergeChainOpts.next (<anonymous>)
+   299→    at chainWalker (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:316:14)
+   300→    at chainWalker.next (<anonymous>)
+   301→    at loadFileChain (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:191:24)
+   302→    at loadFileChain.next (<anonymous>)
+   303→    at mergeExtendsChain (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:328:28)
+   304→    at mergeExtendsChain.next (<anonymous>)
+   305→    at chainWalker (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:312:20)
+   306→    at chainWalker.next (<anonymous>)
+   307→    at buildRootChain (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:56:36)
+   308→    at buildRootChain.next (<anonymous>)
+   309→    at loadPrivatePartialConfig (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/partial.js:72:62)
+   310→    at loadPrivatePartialConfig.next (<anonymous>)
+   311→    at loadFullConfig (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/full.js:36:46)
+   312→    at loadFullConfig.next (<anonymous>)
+   313→    at transform (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/transform.js:20:44)
+   314→    at transform.next (<anonymous>)
+   315→    at evaluateSync (/Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:251:28)
+   316→    at sync (/Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:89:14)
+   317→    at stopHiding - secret - don't use this - v1 (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/errors/rewrite-stack-trace.js:47:12)
+   318→    at Object.transformSync (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/transform.js:40:76)
+   319→    at parseWithBabel (/Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/transformSync.js:75:18)
+   320→    at transformSync (/Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/transformSync.js:64:12)
+   321→    at Object.transform (/Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/babel-transformer.js:127:58)
+   322→    at transformJSWithBabel (/Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/transform-worker/metro-transform-worker.js:468:47)
+   323→Web Bundling failed 2ms apps/mobile/node_modules/expo/AppEntry.js (1 module)
+   324→ ERROR  Error: Cannot find module 'babel-preset-expo'
+   325→Require stack:
+   326→- /Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/plugins.js
+   327→- /Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/index.js
+   328→- /Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/index.js
+   329→- /Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/transform-worker/metro-transform-worker.js
+   330→- /Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/transform-worker/transform-worker.js
+   331→- /Users/yashas/VTO/apps/mobile/node_modules/metro/src/DeltaBundler/Worker.flow.js
+   332→- /Users/yashas/VTO/apps/mobile/node_modules/metro/src/DeltaBundler/Worker.js
+   333→- /Users/yashas/VTO/apps/mobile/node_modules/jest-worker/build/workers/processChild.js
+   334→
+   335→Make sure that all the Babel plugins and presets you are using
+   336→are defined as dependencies or devDependencies in your package.json
+   337→file. It's possible that the missing plugin is loaded by a preset
+   338→you are using that forgot to add the plugin to its dependencies: you
+   339→can workaround this problem by explicitly adding the missing package
+   340→to your top-level package.json.
+   341→
+   342→    at Module._resolveFilename (node:internal/modules/cjs/loader:1475:15)
+   343→    at wrapResolveFilename (node:internal/modules/cjs/loader:1048:27)
+   344→    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1093:12)
+   345→    at resolve (node:internal/modules/helpers:209:31)
+   346→    at tryRequireResolve (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/plugins.js:128:11)
+   347→    at resolveStandardizedNameForRequire (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/plugins.js:162:19)
+   348→    at resolveStandardizedName (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/plugins.js:183:12)
+   349→    at loadPreset (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/plugins.js:68:7)
+   350→    at loadPreset.next (<anonymous>)
+   351→    at createDescriptor (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-descriptors.js:140:16)
+   352→    at createDescriptor.next (<anonymous>)
+   353→    at evaluateSync (/Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:251:28)
+   354→    at /Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:31:34
+   355→    at Array.map (<anonymous>)
+   356→    at gensync.sync (/Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:31:22)
+   357→    at gensync.all (/Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:210:24)
+   358→    at Generator.next (<anonymous>)
+   359→    at createDescriptors (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-descriptors.js:102:41)
+   360→    at createDescriptors.next (<anonymous>)
+   361→    at createPresetDescriptors (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-descriptors.js:96:17)
+   362→    at createPresetDescriptors.next (<anonymous>)
+   363→    at /Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/gensync-utils/functional.js:22:27
+   364→    at Generator.next (<anonymous>)
+   365→    at mergeChainOpts (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:350:34)
+   366→    at mergeChainOpts.next (<anonymous>)
+   367→    at chainWalker (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:316:14)
+   368→    at chainWalker.next (<anonymous>)
+   369→    at loadFileChain (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:191:24)
+   370→    at loadFileChain.next (<anonymous>)
+   371→    at mergeExtendsChain (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:328:28)
+   372→    at mergeExtendsChain.next (<anonymous>)
+   373→    at chainWalker (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:312:20)
+   374→    at chainWalker.next (<anonymous>)
+   375→    at buildRootChain (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:56:36)
+   376→    at buildRootChain.next (<anonymous>)
+   377→    at loadPrivatePartialConfig (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/partial.js:72:62)
+   378→    at loadPrivatePartialConfig.next (<anonymous>)
+   379→    at loadFullConfig (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/full.js:36:46)
+   380→    at loadFullConfig.next (<anonymous>)
+   381→    at transform (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/transform.js:20:44)
+   382→    at transform.next (<anonymous>)
+   383→    at evaluateSync (/Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:251:28)
+   384→    at sync (/Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:89:14)
+   385→    at stopHiding - secret - don't use this - v1 (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/errors/rewrite-stack-trace.js:47:12)
+   386→    at Object.transformSync (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/transform.js:40:76)
+   387→    at parseWithBabel (/Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/transformSync.js:75:18)
+   388→    at transformSync (/Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/transformSync.js:64:12)
+   389→    at Object.transform (/Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/babel-transformer.js:127:58)
+   390→    at transformJSWithBabel (/Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/transform-worker/metro-transform-worker.js:468:47)
+   391→Web Bundling failed 3ms apps/mobile/node_modules/expo/AppEntry.js (1 module)
+   392→ ERROR  Error: Cannot find module 'babel-preset-expo'
+   393→Require stack:
+   394→- /Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/plugins.js
+   395→- /Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/index.js
+   396→- /Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/index.js
+   397→- /Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/transform-worker/metro-transform-worker.js
+   398→- /Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/transform-worker/transform-worker.js
+   399→- /Users/yashas/VTO/apps/mobile/node_modules/metro/src/DeltaBundler/Worker.flow.js
+   400→- /Users/yashas/VTO/apps/mobile/node_modules/metro/src/DeltaBundler/Worker.js
+   401→- /Users/yashas/VTO/apps/mobile/node_modules/jest-worker/build/workers/processChild.js
+   402→
+   403→Make sure that all the Babel plugins and presets you are using
+   404→are defined as dependencies or devDependencies in your package.json
+   405→file. It's possible that the missing plugin is loaded by a preset
+   406→you are using that forgot to add the plugin to its dependencies: you
+   407→can workaround this problem by explicitly adding the missing package
+   408→to your top-level package.json.
+   409→
+   410→    at Module._resolveFilename (node:internal/modules/cjs/loader:1475:15)
+   411→    at wrapResolveFilename (node:internal/modules/cjs/loader:1048:27)
+   412→    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1093:12)
+   413→    at resolve (node:internal/modules/helpers:209:31)
+   414→    at tryRequireResolve (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/plugins.js:128:11)
+   415→    at resolveStandardizedNameForRequire (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/plugins.js:162:19)
+   416→    at resolveStandardizedName (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/plugins.js:183:12)
+   417→    at loadPreset (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/plugins.js:68:7)
+   418→    at loadPreset.next (<anonymous>)
+   419→    at createDescriptor (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-descriptors.js:140:16)
+   420→    at createDescriptor.next (<anonymous>)
+   421→    at evaluateSync (/Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:251:28)
+   422→    at /Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:31:34
+   423→    at Array.map (<anonymous>)
+   424→    at gensync.sync (/Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:31:22)
+   425→    at gensync.all (/Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:210:24)
+   426→    at Generator.next (<anonymous>)
+   427→    at createDescriptors (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-descriptors.js:102:41)
+   428→    at createDescriptors.next (<anonymous>)
+   429→    at createPresetDescriptors (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-descriptors.js:96:17)
+   430→    at createPresetDescriptors.next (<anonymous>)
+   431→    at /Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/gensync-utils/functional.js:22:27
+   432→    at Generator.next (<anonymous>)
+   433→    at mergeChainOpts (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:350:34)
+   434→    at mergeChainOpts.next (<anonymous>)
+   435→    at chainWalker (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:316:14)
+   436→    at chainWalker.next (<anonymous>)
+   437→    at loadFileChain (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:191:24)
+   438→    at loadFileChain.next (<anonymous>)
+   439→    at mergeExtendsChain (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:328:28)
+   440→    at mergeExtendsChain.next (<anonymous>)
+   441→    at chainWalker (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:312:20)
+   442→    at chainWalker.next (<anonymous>)
+   443→    at buildRootChain (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:56:36)
+   444→    at buildRootChain.next (<anonymous>)
+   445→    at loadPrivatePartialConfig (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/partial.js:72:62)
+   446→    at loadPrivatePartialConfig.next (<anonymous>)
+   447→    at loadFullConfig (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/full.js:36:46)
+   448→    at loadFullConfig.next (<anonymous>)
+   449→    at transform (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/transform.js:20:44)
+   450→    at transform.next (<anonymous>)
+   451→    at evaluateSync (/Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:251:28)
+   452→    at sync (/Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:89:14)
+   453→    at stopHiding - secret - don't use this - v1 (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/errors/rewrite-stack-trace.js:47:12)
+   454→    at Object.transformSync (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/transform.js:40:76)
+   455→    at parseWithBabel (/Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/transformSync.js:75:18)
+   456→    at transformSync (/Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/transformSync.js:64:12)
+   457→    at Object.transform (/Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/babel-transformer.js:127:58)
+   458→    at transformJSWithBabel (/Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/transform-worker/metro-transform-worker.js:468:47)
+   459→Web Bundling failed 3ms apps/mobile/node_modules/expo/AppEntry.js (1 module)
+   460→ ERROR  Error: Cannot find module 'babel-preset-expo'
+   461→Require stack:
+   462→- /Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/plugins.js
+   463→- /Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/index.js
+   464→- /Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/index.js
+   465→- /Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/transform-worker/metro-transform-worker.js
+   466→- /Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/transform-worker/transform-worker.js
+   467→- /Users/yashas/VTO/apps/mobile/node_modules/metro/src/DeltaBundler/Worker.flow.js
+   468→- /Users/yashas/VTO/apps/mobile/node_modules/metro/src/DeltaBundler/Worker.js
+   469→- /Users/yashas/VTO/apps/mobile/node_modules/jest-worker/build/workers/processChild.js
+   470→
+   471→Make sure that all the Babel plugins and presets you are using
+   472→are defined as dependencies or devDependencies in your package.json
+   473→file. It's possible that the missing plugin is loaded by a preset
+   474→you are using that forgot to add the plugin to its dependencies: you
+   475→can workaround this problem by explicitly adding the missing package
+   476→to your top-level package.json.
+   477→
+   478→    at Module._resolveFilename (node:internal/modules/cjs/loader:1475:15)
+   479→    at wrapResolveFilename (node:internal/modules/cjs/loader:1048:27)
+   480→    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1093:12)
+   481→    at resolve (node:internal/modules/helpers:209:31)
+   482→    at tryRequireResolve (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/plugins.js:128:11)
+   483→    at resolveStandardizedNameForRequire (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/plugins.js:162:19)
+   484→    at resolveStandardizedName (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/plugins.js:183:12)
+   485→    at loadPreset (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/files/plugins.js:68:7)
+   486→    at loadPreset.next (<anonymous>)
+   487→    at createDescriptor (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-descriptors.js:140:16)
+   488→    at createDescriptor.next (<anonymous>)
+   489→    at evaluateSync (/Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:251:28)
+   490→    at /Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:31:34
+   491→    at Array.map (<anonymous>)
+   492→    at gensync.sync (/Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:31:22)
+   493→    at gensync.all (/Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:210:24)
+   494→    at Generator.next (<anonymous>)
+   495→    at createDescriptors (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-descriptors.js:102:41)
+   496→    at createDescriptors.next (<anonymous>)
+   497→    at createPresetDescriptors (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-descriptors.js:96:17)
+   498→    at createPresetDescriptors.next (<anonymous>)
+   499→    at /Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/gensync-utils/functional.js:22:27
+   500→    at Generator.next (<anonymous>)
+   501→    at mergeChainOpts (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:350:34)
+   502→    at mergeChainOpts.next (<anonymous>)
+   503→    at chainWalker (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:316:14)
+   504→    at chainWalker.next (<anonymous>)
+   505→    at loadFileChain (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:191:24)
+   506→    at loadFileChain.next (<anonymous>)
+   507→    at mergeExtendsChain (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:328:28)
+   508→    at mergeExtendsChain.next (<anonymous>)
+   509→    at chainWalker (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:312:20)
+   510→    at chainWalker.next (<anonymous>)
+   511→    at buildRootChain (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/config-chain.js:56:36)
+   512→    at buildRootChain.next (<anonymous>)
+   513→    at loadPrivatePartialConfig (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/partial.js:72:62)
+   514→    at loadPrivatePartialConfig.next (<anonymous>)
+   515→    at loadFullConfig (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/config/full.js:36:46)
+   516→    at loadFullConfig.next (<anonymous>)
+   517→    at transform (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/transform.js:20:44)
+   518→    at transform.next (<anonymous>)
+   519→    at evaluateSync (/Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:251:28)
+   520→    at sync (/Users/yashas/VTO/apps/mobile/node_modules/gensync/index.js:89:14)
+   521→    at stopHiding - secret - don't use this - v1 (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/errors/rewrite-stack-trace.js:47:12)
+   522→    at Object.transformSync (/Users/yashas/VTO/apps/mobile/node_modules/@babel/core/lib/transform.js:40:76)
+   523→    at parseWithBabel (/Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/transformSync.js:75:18)
+   524→    at transformSync (/Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/transformSync.js:64:12)
+   525→    at Object.transform (/Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/babel-transformer.js:127:58)
+   526→    at transformJSWithBabel (/Users/yashas/VTO/apps/mobile/node_modules/expo/node_modules/@expo/metro-config/build/transform-worker/metro-transform-worker.js:468:47)
+   527→
+   528→
