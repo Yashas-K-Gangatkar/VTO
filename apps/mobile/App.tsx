@@ -1,17 +1,18 @@
 /**
  * VTO App — Main Entry Point
  * 
- * Architecture: "Scan Once, Use Forever"
- * - New users go through OnboardingScreen (6 photos → 3D model → cloud upload)
- * - Returning users go to TryOnScreen (3D viewer + QR scanner + garment browsing)
- * - Cross-app sync: retrieve 3D model from cloud using phone number + OTP
+ * Uses lazy loading to prevent expo-gl from crashing on startup.
+ * TryOnScreen (which uses 3D) is only loaded when the user has a body model.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { StatusBar } from 'expo-status-bar';
+import { ActivityIndicator, View } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import OnboardingScreen from './src/screens/OnboardingScreen';
-import TryOnScreen from './src/screens/TryOnScreen';
+
+// Lazy load TryOnScreen to prevent expo-gl crash on startup
+const TryOnScreen = React.lazy(() => import('./src/screens/TryOnScreen'));
 
 const BODY_MODEL_PATH = `${FileSystem.documentDirectory}vto_body_model.glb`;
 
@@ -39,27 +40,40 @@ export default function App() {
   };
 
   const handleOnboardingComplete = async (modelUri: string) => {
-    // Copy the model to persistent storage
-    await FileSystem.copyAsync({ from: modelUri, to: BODY_MODEL_PATH });
-    setBodyModelUri(BODY_MODEL_PATH);
-    setHasBodyModel(true);
+    try {
+      await FileSystem.copyAsync({ from: modelUri, to: BODY_MODEL_PATH });
+      setBodyModelUri(BODY_MODEL_PATH);
+      setHasBodyModel(true);
+    } catch (e) {
+      console.error('Failed to save model:', e);
+    }
   };
 
   const handleReset = async () => {
-    await FileSystem.deleteAsync(BODY_MODEL_PATH, { idempotent: true });
+    try {
+      await FileSystem.deleteAsync(BODY_MODEL_PATH, { idempotent: true });
+    } catch (e) {
+      console.error('Failed to delete model:', e);
+    }
     setBodyModelUri(null);
     setHasBodyModel(false);
   };
 
   if (loading) {
-    return null; // Splash screen placeholder
+    return (
+      <View style={{ flex: 1, backgroundColor: '#0F0F0F', justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#6C63FF" />
+      </View>
+    );
   }
 
   return (
     <>
       <StatusBar style="light" />
       {hasBodyModel ? (
-        <TryOnScreen bodyModelUri={bodyModelUri} onReset={handleReset} />
+        <Suspense fallback={<View style={{ flex: 1, backgroundColor: '#0F0F0F', justifyContent: 'center' }}><ActivityIndicator size="large" color="#6C63FF" /></View>}>
+          <TryOnScreen bodyModelUri={bodyModelUri} onReset={handleReset} />
+        </Suspense>
       ) : (
         <OnboardingScreen onComplete={handleOnboardingComplete} />
       )}
