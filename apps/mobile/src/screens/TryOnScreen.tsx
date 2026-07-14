@@ -8,7 +8,7 @@ import {
   Alert, Modal, TextInput
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CameraView } from 'expo-camera';
+import * as Camera from 'expo-camera';
 import ThreeDViewer from '../components/ThreeDViewer';
 import { syncRequestOtp, syncRetrieveBody } from '../api/cloudSync';
 import * as FileSystem from 'expo-file-system';
@@ -36,7 +36,7 @@ export default function TryOnScreen({ bodyModelUri, onReset }: TryOnScreenProps)
 
   useEffect(() => {
     (async () => {
-      const { status } = await CameraView.requestCameraPermissionsAsync();
+      const { status } = await Camera.requestCameraPermissionsAsync();
       setHasPermission(status === 'granted');
     })();
   }, []);
@@ -95,7 +95,7 @@ export default function TryOnScreen({ bodyModelUri, onReset }: TryOnScreenProps)
         <SafeAreaView style={styles.scannerContainer}>
           <Text style={styles.scannerTitle}>Scan Garment QR Code</Text>
           {hasPermission ? (
-            <CameraView 
+            <Camera.CameraView 
               style={styles.scanner} 
               onBarcodeScanned={scannerOpen ? handleBarCodeScanned : undefined}
               ratio="16:9"
