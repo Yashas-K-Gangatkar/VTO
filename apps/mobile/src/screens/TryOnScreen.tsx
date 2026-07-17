@@ -19,21 +19,34 @@ interface TryOnScreenProps {
   onReset: () => void;
 }
 
+/**
+ * Garment catalogue.
+ * `modelUrl` points to a small Khronos sample GLB — these stand in for real
+ * garment 3D assets until the retailer dashboard is built. The IDs let us
+ * cache the downloaded GLB by garment so we don't re-fetch on every tap.
+ */
 const MOCK_GARMENTS = [
-  { id: '1', name: 'Cotton T-Shirt', color: '#4A90D9', qr: 'VTO-GARMENT-001' },
-  { id: '2', name: 'Denim Jacket', color: '#4A6FA5', qr: 'VTO-GARMENT-002' },
-  { id: '3', name: 'Summer Dress', color: '#E91E63', qr: 'VTO-GARMENT-003' },
-  { id: '4', name: 'Hoodie', color: '#4CAF50', qr: 'VTO-GARMENT-004' },
-  { id: '5', name: 'Formal Shirt', color: '#FFF', qr: 'VTO-GARMENT-005' },
+  { id: '1', name: 'Cotton T-Shirt', color: '#4A90D9', qr: 'VTO-GARMENT-001', modelUrl: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Box/glTF-Binary/Box.glb' },
+  { id: '2', name: 'Denim Jacket', color: '#4A6FA5', qr: 'VTO-GARMENT-002', modelUrl: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/BoxTextured/glTF-Binary/BoxTextured.glb' },
+  { id: '3', name: 'Summer Dress', color: '#E91E63', qr: 'VTO-GARMENT-003', modelUrl: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Duck/glTF-Binary/Duck.glb' },
+  { id: '4', name: 'Hoodie', color: '#4CAF50', qr: 'VTO-GARMENT-004', modelUrl: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Avocado/glTF-Binary/Avocado.glb' },
+  { id: '5', name: 'Formal Shirt', color: '#FFF', qr: 'VTO-GARMENT-005', modelUrl: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/BarramundiFish/glTF-Binary/BarramundiFish.glb' },
 ];
 
 export default function TryOnScreen({ bodyModelUri, onReset }: TryOnScreenProps) {
+  // Tripwire log — confirms TryOnScreen actually mounted and logs are flowing.
+  console.log('[TryOnScreen] mounted, bodyModelUri =', bodyModelUri);
+
   const [scannerOpen, setScannerOpen] = useState(false);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [syncModalOpen, setSyncModalOpen] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [otp, setOtp] = useState('');
   const [syncing, setSyncing] = useState(false);
+  // Garment try-on state
+  const [garmentUri, setGarmentUri] = useState<string | null>(null);
+  const [activeGarmentName, setActiveGarmentName] = useState<string | null>(null);
+  const [garmentLoading, setGarmentLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -44,7 +57,40 @@ export default function TryOnScreen({ bodyModelUri, onReset }: TryOnScreenProps)
 
   const handleBarCodeScanned = ({ data }: { data: string }) => {
     setScannerOpen(false);
-    Alert.alert('Garment Scanned!', `QR: ${data}\n\nLoading 3D garment...`);
+    // Try to match scanned QR to a known garment; fall back to first catalogue item.
+    const match = MOCK_GARMENTS.find((g) => g.qr === data);
+    const garment = match || MOCK_GARMENTS[0];
+    Alert.alert('Garment Scanned!', `Loading ${garment.name} 3D asset…`);
+    handleSelectGarment(garment);
+  };
+
+  /**
+   * Download (or reuse cached) garment GLB and pass it to ThreeDViewer.
+   * Cached at cacheDirectory + `garment_<id>.glb` so repeat taps are instant.
+   */
+  const handleSelectGarment = async (garment: typeof MOCK_GARMENTS[number]) => {
+    try {
+      setGarmentLoading(true);
+      const localPath = `${FileSystem.cacheDirectory}garment_${garment.id}.glb`;
+      const info = await FileSystem.getInfoAsync(localPath);
+      if (!info.exists) {
+        console.log('[TryOnScreen] downloading garment', garment.id, garment.modelUrl);
+        await FileSystem.downloadAsync(garment.modelUrl, localPath);
+      } else {
+        console.log('[TryOnScreen] garment cached at', localPath);
+      }
+      setGarmentUri(localPath);
+      setActiveGarmentName(garment.name);
+    } catch (e: any) {
+      Alert.alert('Garment load failed', e?.message || String(e));
+    } finally {
+      setGarmentLoading(false);
+    }
+  };
+
+  const handleClearGarment = () => {
+    setGarmentUri(null);
+    setActiveGarmentName(null);
   };
 
   const handleSyncRetrieve = async () => {
@@ -76,8 +122,25 @@ export default function TryOnScreen({ bodyModelUri, onReset }: TryOnScreenProps)
         <TouchableOpacity onPress={onReset}><Text style={styles.resetButton}>Reset</Text></TouchableOpacity>
       </View>
       <View style={styles.viewerSection}>
-        <ThreeDViewer modelUri={bodyModelUri} autoRotate={true} />
+        <ThreeDViewer
+          modelUri={bodyModelUri}
+          garmentUri={garmentUri}
+          autoRotate={true}
+        />
         <View style={styles.viewerBadge}><Text style={styles.viewerBadgeText}>3D Digital Twin • $0.00 per render</Text></View>
+        {activeGarmentName && (
+          <View style={styles.garmentBadge}>
+            <Text style={styles.garmentBadgeText}>Wearing: {activeGarmentName}</Text>
+            <TouchableOpacity onPress={handleClearGarment} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.garmentBadgeClear}>✕</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        {garmentLoading && (
+          <View style={styles.viewerBadge} pointerEvents="none">
+            <Text style={[styles.viewerBadgeText, { color: '#FFB74D' }]}>Loading garment…</Text>
+          </View>
+        )}
       </View>
       <View style={styles.actionsRow}>
         <TouchableOpacity style={styles.scanButton} onPress={() => setScannerOpen(true)}><Text style={styles.scanButtonText}>📷 Scan QR</Text></TouchableOpacity>
@@ -86,7 +149,14 @@ export default function TryOnScreen({ bodyModelUri, onReset }: TryOnScreenProps)
       <Text style={styles.sectionTitle}>Browse Garments</Text>
       <ScrollView horizontal style={styles.garmentList} showsHorizontalScrollIndicator={false}>
         {MOCK_GARMENTS.map((garment) => (
-          <TouchableOpacity key={garment.id} style={styles.garmentCard} onPress={() => Alert.alert('Try-On', `Loading ${garment.name} on 3D model...`)}>
+          <TouchableOpacity
+            key={garment.id}
+            style={[
+              styles.garmentCard,
+              activeGarmentName === garment.name && styles.garmentCardActive,
+            ]}
+            onPress={() => handleSelectGarment(garment)}
+          >
             <View style={[styles.garmentImage, { backgroundColor: garment.color }]} />
             <Text style={styles.garmentName}>{garment.name}</Text>
           </TouchableOpacity>
@@ -96,8 +166,8 @@ export default function TryOnScreen({ bodyModelUri, onReset }: TryOnScreenProps)
         <SafeAreaView style={styles.scannerContainer}>
           <Text style={styles.scannerTitle}>Scan Garment QR Code</Text>
           {hasPermission ? (
-            <CameraView 
-              style={styles.scanner} 
+            <CameraView
+              style={styles.scanner}
               onBarcodeScanned={scannerOpen ? handleBarCodeScanned : undefined}
               ratio="16:9"
             />
@@ -139,9 +209,19 @@ const styles = StyleSheet.create({
   syncButtonText: { color: '#FFF', fontSize: 14, fontWeight: '600' },
   sectionTitle: { color: '#FFF', fontSize: 16, fontWeight: '700', paddingHorizontal: 16, marginBottom: 10 },
   garmentList: { paddingLeft: 16, paddingBottom: 20 },
-  garmentCard: { marginRight: 12, width: 100 },
-  garmentImage: { width: 100, height: 120, borderRadius: 12, marginBottom: 6 },
+  garmentCard: { marginRight: 12, width: 100, borderWidth: 2, borderColor: 'transparent', borderRadius: 14, padding: 2 },
+  garmentCardActive: { borderColor: '#6C63FF' },
+  garmentImage: { width: '100%', height: 120, borderRadius: 12, marginBottom: 6 },
   garmentName: { color: '#CCC', fontSize: 12, textAlign: 'center' },
+  garmentBadge: {
+    position: 'absolute', top: 8, right: 8,
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(108, 99, 255, 0.9)',
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: 12, zIndex: 6,
+  },
+  garmentBadgeText: { color: '#FFF', fontSize: 11, fontWeight: '600', marginRight: 8 },
+  garmentBadgeClear: { color: '#FFF', fontSize: 14, fontWeight: '700' },
   scannerContainer: { flex: 1, backgroundColor: '#0F0F0F', padding: 20 },
   scannerTitle: { color: '#FFF', fontSize: 20, fontWeight: '700', textAlign: 'center', marginBottom: 20 },
   scanner: { flex: 1, borderRadius: 16, overflow: 'hidden' },

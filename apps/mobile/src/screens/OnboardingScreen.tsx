@@ -1,6 +1,6 @@
 /**
  * Onboarding Screen — "Scan Once" Flow
- * 
+ *
  * Features:
  * - Guided camera with silhouette overlay
  * - 6-segment progress bar
@@ -69,14 +69,14 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const takePhoto = async () => {
     if (!cameraRef.current) return;
     try {
-      const photo = await cameraRef.current.takePictureAsync({ 
-        quality: 0.8, 
-        skipProcessing: true 
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 0.8,
+        skipProcessing: true
       });
       triggerFlash();
       const newPhotos = [...photos, photo.uri];
       setPhotos(newPhotos);
-      
+
       if (currentAngle < CAPTURE_ANGLES.length - 1) {
         setTimeout(() => setCurrentAngle(currentAngle + 1), 400);
       } else {
@@ -116,7 +116,11 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     }
     setUploading(true);
     try {
-      const sampleModelUrl = 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Box/glTF-Binary/Box.glb';
+      // Use a small humanoid sample model so the 3D viewer clearly shows a
+      // body shape (not just a colored box) during end-to-end testing.
+      // RiggedFigure is ~150 KB and is rigged, which will let us animate the
+      // body once we wire up real garment-fitting later.
+      const sampleModelUrl = 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/RiggedFigure/glTF-Binary/RiggedFigure.glb';
       const localPath = `${FileSystem.cacheDirectory}body_model.glb`;
       const downloadResult = await FileSystem.downloadAsync(sampleModelUrl, localPath);
       await syncUploadBody(phoneNumber, downloadResult.uri);
@@ -140,7 +144,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
           <Text style={styles.subtitle}>
             Scan your body once. Use it forever across every store.
           </Text>
-          
+
           <View style={styles.stepsContainer}>
             <Text style={styles.stepText}>📸 Take 6 guided photos (2 minutes)</Text>
             <Text style={styles.stepText}>🤖 We generate your 3D body</Text>
@@ -169,13 +173,13 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
           {/* 6-segment progress bar */}
           <View style={styles.progressBar}>
             {CAPTURE_ANGLES.map((_, i) => (
-              <View 
-                key={i} 
+              <View
+                key={i}
                 style={[
-                  styles.progressSegment, 
+                  styles.progressSegment,
                   i < photos.length && styles.progressSegmentDone,
                   i === currentAngle && styles.progressSegmentActive,
-                ]} 
+                ]}
               />
             ))}
           </View>
@@ -214,12 +218,12 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
 
         {/* Camera View with Silhouette Overlay */}
         <View style={styles.cameraContainer}>
-          <CameraView 
-            ref={cameraRef} 
-            style={styles.camera} 
+          <CameraView
+            ref={cameraRef}
+            style={styles.camera}
             facing={'back'}
           />
-          
+
           {/* Human Silhouette Overlay */}
           <View style={styles.silhouetteOverlay} pointerEvents="none">
             <View style={styles.silhouetteHead} />
@@ -236,11 +240,11 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
           </View>
 
           {/* Green flash overlay on capture */}
-          <Animated.View 
+          <Animated.View
             style={[
-              styles.flashOverlay, 
+              styles.flashOverlay,
               { opacity: flashAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.6] }) }
-            ]} 
+            ]}
             pointerEvents="none"
           />
 
@@ -342,7 +346,7 @@ const styles = StyleSheet.create({
   progressSegment: { flex: 1, height: 4, backgroundColor: '#333', borderRadius: 2 },
   progressSegmentDone: { backgroundColor: '#00C853' },
   progressSegmentActive: { backgroundColor: '#6C63FF' },
-  
+
   // Angle Grid
   angleGrid: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4 },
   angleThumb: { alignItems: 'center', width: 50 },
@@ -364,49 +368,49 @@ const styles = StyleSheet.create({
 
   // Silhouette Overlay
   silhouetteOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center' },
-  silhouetteHead: { 
-    position: 'absolute', top: '12%', width: 60, height: 70, borderRadius: 35, 
-    borderWidth: 2, borderColor: 'rgba(108, 99, 255, 0.5)', backgroundColor: 'rgba(108, 99, 255, 0.08)' 
+  silhouetteHead: {
+    position: 'absolute', top: '12%', width: 60, height: 70, borderRadius: 35,
+    borderWidth: 2, borderColor: 'rgba(108, 99, 255, 0.5)', backgroundColor: 'rgba(108, 99, 255, 0.08)'
   },
-  silhouetteShoulders: { 
-    position: 'absolute', top: '28%', width: 140, height: 20, 
+  silhouetteShoulders: {
+    position: 'absolute', top: '28%', width: 140, height: 20,
     borderWidth: 2, borderColor: 'rgba(108, 99, 255, 0.5)', backgroundColor: 'rgba(108, 99, 255, 0.08)',
     borderTopLeftRadius: 10, borderTopRightRadius: 10
   },
-  silhouetteTorso: { 
-    position: 'absolute', top: '31%', width: 120, height: 180, 
+  silhouetteTorso: {
+    position: 'absolute', top: '31%', width: 120, height: 180,
     borderWidth: 2, borderColor: 'rgba(108, 99, 255, 0.5)', backgroundColor: 'rgba(108, 99, 255, 0.08)'
   },
-  silhouetteLeftArm: { 
-    position: 'absolute', top: '32%', left: '22%', width: 25, height: 160, 
+  silhouetteLeftArm: {
+    position: 'absolute', top: '32%', left: '22%', width: 25, height: 160,
     borderWidth: 2, borderColor: 'rgba(108, 99, 255, 0.5)', backgroundColor: 'rgba(108, 99, 255, 0.08)',
     borderRadius: 12
   },
-  silhouetteRightArm: { 
-    position: 'absolute', top: '32%', right: '22%', width: 25, height: 160, 
+  silhouetteRightArm: {
+    position: 'absolute', top: '32%', right: '22%', width: 25, height: 160,
     borderWidth: 2, borderColor: 'rgba(108, 99, 255, 0.5)', backgroundColor: 'rgba(108, 99, 255, 0.08)',
     borderRadius: 12
   },
-  silhouetteLeftLeg: { 
-    position: 'absolute', top: '60%', left: '38%', width: 35, height: 200, 
+  silhouetteLeftLeg: {
+    position: 'absolute', top: '60%', left: '38%', width: 35, height: 200,
     borderWidth: 2, borderColor: 'rgba(108, 99, 255, 0.5)', backgroundColor: 'rgba(108, 99, 255, 0.08)',
     borderBottomLeftRadius: 10
   },
-  silhouetteRightLeg: { 
-    position: 'absolute', top: '60%', right: '38%', width: 35, height: 200, 
+  silhouetteRightLeg: {
+    position: 'absolute', top: '60%', right: '38%', width: 35, height: 200,
     borderWidth: 2, borderColor: 'rgba(108, 99, 255, 0.5)', backgroundColor: 'rgba(108, 99, 255, 0.08)',
     borderBottomRightRadius: 10
   },
-  alignmentLineTop: { 
-    position: 'absolute', top: '8%', left: '10%', right: '10%', height: 1, 
-    backgroundColor: 'rgba(0, 200, 83, 0.3)' 
+  alignmentLineTop: {
+    position: 'absolute', top: '8%', left: '10%', right: '10%', height: 1,
+    backgroundColor: 'rgba(0, 200, 83, 0.3)'
   },
-  alignmentLineBottom: { 
-    position: 'absolute', bottom: '5%', left: '10%', right: '10%', height: 1, 
-    backgroundColor: 'rgba(0, 200, 83, 0.3)' 
+  alignmentLineBottom: {
+    position: 'absolute', bottom: '5%', left: '10%', right: '10%', height: 1,
+    backgroundColor: 'rgba(0, 200, 83, 0.3)'
   },
-  alignmentText: { 
-    position: 'absolute', bottom: '6%', color: 'rgba(0, 200, 83, 0.6)', fontSize: 10, fontWeight: '600' 
+  alignmentText: {
+    position: 'absolute', bottom: '6%', color: 'rgba(0, 200, 83, 0.6)', fontSize: 10, fontWeight: '600'
   },
 
   // Flash

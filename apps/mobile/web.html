@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>VTO Try-On</title>
+    <style>
+        body { margin: 0; background: #0F0F0F; color: #FFF; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+        .container { padding: 20px; max-width: 500px; margin: 0 auto; }
+        h1 { font-size: 48px; font-weight: 900; letter-spacing: -2px; text-align: center; margin-top: 20px; }
+        .subtitle { text-align: center; color: #888; margin-bottom: 30px; }
+        .badge { display: inline-block; padding: 4px 12px; border-radius: 12px; background: #FF6B35; color: #FFF; font-size: 12px; font-weight: 600; margin-left: 8px; }
+        .section-title { font-size: 18px; font-weight: 700; margin: 20px 0 10px 0; }
+        .btn { display: block; width: 100%; background: #1E1E1E; border: 1px solid #333; border-radius: 12px; padding: 16px; color: #FFF; font-size: 16px; font-weight: 600; text-align: center; margin-bottom: 10px; cursor: pointer; box-sizing: border-box; }
+        .btn-primary { background: #6C63FF; border: none; margin-top: 20px; }
+        .preview { width: 100%; max-height: 300px; border-radius: 12px; margin: 10px 0; display: none; }
+        .result { width: 100%; max-height: 400px; border-radius: 12px; margin: 10px 0; display: none; }
+        .loading { display: none; text-align: center; padding: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>VTO</h1>
+        <p class="subtitle">Virtual Try-On <span class="badge" id="mode">Checking...</span></p>
+        
+        <p class="section-title">1. Your Photo</p>
+        <input type="file" id="person-input" accept="image/*" capture="user" class="btn">
+        <img id="person-preview" class="preview">
+        
+        <p class="section-title">2. Garment</p>
+        <input type="file" id="garment-input" accept="image/*" class="btn">
+        <img id="garment-preview" class="preview">
+        
+        <div class="loading" id="loading">Processing...</div>
+        <img id="result" class="result">
+        
+        <button class="btn btn-primary" id="tryon-btn" onclick="runTryOn()" disabled>Try It On →</button>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8000'; // Your Mac's IP
+        let personPhoto = null;
+        let garmentPhoto = null;
+
+        // Check API status
+        fetch(`${API_URL}/api/v1/status`)
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('mode').textContent = data.mode === 'real' ? 'GPU Active' : 'Demo Mode';
+                document.getElementById('mode').style.background = data.mode === 'real' ? '#00C853' : '#FF6B35';
+            })
+            .catch(() => {
+                document.getElementById('mode').textContent = 'Offline';
+                document.getElementById('mode').style.background = '#666';
+            });
+
+        document.getElementById('person-input').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                personPhoto = file;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    const img = document.getElementById('person-preview');
+                    img.src = ev.target.result;
+                    img.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+                checkReady();
+            }
+        });
+
+        document.getElementById('garment-input').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                garmentPhoto = file;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    const img = document.getElementById('garment-preview');
+                    img.src = ev.target.result;
+                    img.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+                checkReady();
+            }
+        });
+
+        function checkReady() {
+            const btn = document.getElementById('tryon-btn');
+            if (personPhoto && garmentPhoto) {
+                btn.disabled = false;
+                btn.style.background = '#6C63FF';
+            }
+        }
+
+        async function runTryOn() {
+            const btn = document.getElementById('tryon-btn');
+            const loading = document.getElementById('loading');
+            const result = document.getElementById('result');
+            
+            btn.disabled = true;
+            btn.textContent = 'Processing...';
+            loading.style.display = 'block';
+            result.style.display = 'none';
+
+            const formData = new FormData();
+            formData.append('person_image', personPhoto);
+            formData.append('garment_image', garmentPhoto);
+
+            try {
+                const res = await fetch(`${API_URL}/api/v1/tryon`, {
+                    method: 'POST',
+                    body: formData,
+                });
+                const data = await res.json();
+                
+                result.src = `data:image/png;base64,${data.image}`;
+                result.style.display = 'block';
+            } catch (e) {
+                alert('Error: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Try It On →';
+                loading.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>
